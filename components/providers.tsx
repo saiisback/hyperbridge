@@ -2,12 +2,25 @@
 
 import * as React from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { WagmiProvider } from 'wagmi'
-import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
-import { config } from '@/lib/wagmi'
+import { PrivyProvider } from '@privy-io/react-auth'
+import { WagmiProvider, createConfig } from '@privy-io/wagmi'
+import { mainnet, polygon, arbitrum, base, sepolia } from 'viem/chains'
+import { http } from 'wagmi'
+import { privyConfig } from '@/lib/privy'
+import { AuthProvider } from '@/context/auth-context'
 import { WalletProvider } from '@/context/wallet-context'
 
-import '@rainbow-me/rainbowkit/styles.css'
+// Create wagmi config for Privy
+const wagmiConfig = createConfig({
+  chains: [mainnet, polygon, arbitrum, base, sepolia],
+  transports: {
+    [mainnet.id]: http(),
+    [polygon.id]: http(),
+    [arbitrum.id]: http(),
+    [base.id]: http(),
+    [sepolia.id]: http(),
+  },
+})
 
 const queryClient = new QueryClient()
 
@@ -18,30 +31,28 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setMounted(true)
   }, [])
 
-  // Prevent SSR issues with wagmi
+  // Prevent SSR issues
   if (!mounted) {
     return null
   }
 
+  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID
+
+  if (!privyAppId) {
+    console.error('NEXT_PUBLIC_PRIVY_APP_ID is not set')
+    return <>{children}</>
+  }
+
   return (
-    <WagmiProvider config={config}>
+    <PrivyProvider appId={privyAppId} config={privyConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          theme={darkTheme({
-            accentColor: '#f97316',
-            accentColorForeground: 'white',
-            borderRadius: 'large',
-            fontStack: 'system',
-            overlayBlur: 'small',
-          })}
-          modalSize="compact"
-        >
-          <WalletProvider>
-            {children}
-          </WalletProvider>
-        </RainbowKitProvider>
+        <WagmiProvider config={wagmiConfig}>
+          <AuthProvider>
+            <WalletProvider>{children}</WalletProvider>
+          </AuthProvider>
+        </WagmiProvider>
       </QueryClientProvider>
-    </WagmiProvider>
+    </PrivyProvider>
   )
 }
 

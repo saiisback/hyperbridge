@@ -2,19 +2,29 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Wallet } from 'lucide-react'
-import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { useWallet } from '@/hooks/use-wallet'
+import { Wallet, Mail, Chrome } from 'lucide-react'
+import { useAuth } from '@/context/auth-context'
 
 export default function LoginPage() {
-  const { isConnected } = useWallet()
+  const { isAuthenticated, isLoading, isReady, login } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (isConnected) {
+    if (isReady && isAuthenticated) {
       router.push('/dashboard')
     }
-  }, [isConnected, router])
+  }, [isReady, isAuthenticated, router])
+
+  if (!isReady || isLoading) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-black">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+          <p className="text-white/60">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-black overflow-hidden">
@@ -38,107 +48,80 @@ export default function LoginPage() {
             Hyper<span className="text-orange-500">Bridge</span>
           </h1>
           <p className="mt-3 text-white/60">
-            Connect your wallet to access the dashboard
+            Sign in to access your dashboard
           </p>
         </div>
 
-        {/* RainbowKit Connect Button */}
-        <div className="flex flex-col items-center gap-6">
-          <ConnectButton.Custom>
-            {({
-              account,
-              chain,
-              openAccountModal,
-              openChainModal,
-              openConnectModal,
-              authenticationStatus,
-              mounted,
-            }) => {
-              const ready = mounted && authenticationStatus !== 'loading'
-              const connected =
-                ready &&
-                account &&
-                chain &&
-                (!authenticationStatus || authenticationStatus === 'authenticated')
+        {/* Auth Options */}
+        <div className="space-y-4">
+          {/* Main Sign In Button - Opens Privy Modal */}
+          <button
+            onClick={login}
+            className="group relative w-full rounded-xl border border-orange-500/50 bg-orange-500 p-4 text-white font-semibold transition-all duration-300 hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/25"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <Wallet className="h-5 w-5" />
+              Sign In / Sign Up
+            </div>
+          </button>
 
-              return (
-                <div
-                  {...(!ready && {
-                    'aria-hidden': true,
-                    style: {
-                      opacity: 0,
-                      pointerEvents: 'none',
-                      userSelect: 'none',
-                    },
-                  })}
-                  className="w-full"
-                >
-                  {(() => {
-                    if (!connected) {
-                      return (
-                        <button
-                          onClick={openConnectModal}
-                          className="group relative w-full rounded-xl border border-orange-500/50 bg-orange-500 p-4 text-white font-semibold transition-all duration-300 hover:bg-orange-600 hover:shadow-lg hover:shadow-orange-500/25"
-                        >
-                          <div className="flex items-center justify-center gap-3">
-                            <Wallet className="h-5 w-5" />
-                            Connect Wallet
-                          </div>
-                        </button>
-                      )
-                    }
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="bg-black px-4 text-white/40">Available sign-in methods</span>
+            </div>
+          </div>
 
-                    if (chain.unsupported) {
-                      return (
-                        <button
-                          onClick={openChainModal}
-                          className="w-full rounded-xl border border-red-500/50 bg-red-500/20 p-4 text-red-500 font-semibold"
-                        >
-                          Wrong network
-                        </button>
-                      )
-                    }
+          {/* Sign-in method indicators */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20">
+                <Mail className="h-5 w-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">Email</p>
+                <p className="text-xs text-white/50">Password login</p>
+              </div>
+            </div>
 
-                    return (
-                      <div className="flex flex-col gap-3">
-                        <button
-                          onClick={openChainModal}
-                          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 p-3 text-white hover:bg-white/10 transition-colors"
-                        >
-                          {chain.hasIcon && (
-                            <div
-                              className="h-5 w-5 rounded-full overflow-hidden"
-                              style={{ background: chain.iconBackground }}
-                            >
-                              {chain.iconUrl && (
-                                <img
-                                  alt={chain.name ?? 'Chain icon'}
-                                  src={chain.iconUrl}
-                                  className="h-5 w-5"
-                                />
-                              )}
-                            </div>
-                          )}
-                          {chain.name}
-                        </button>
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
+                <Wallet className="h-5 w-5 text-orange-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">Wallet</p>
+                <p className="text-xs text-white/50">Web3 wallets</p>
+              </div>
+            </div>
 
-                        <button
-                          onClick={openAccountModal}
-                          className="flex items-center justify-center gap-2 rounded-xl border border-orange-500/50 bg-orange-500/20 p-4 text-orange-500 font-semibold hover:bg-orange-500/30 transition-colors"
-                        >
-                          {account.displayName}
-                          {account.displayBalance ? ` (${account.displayBalance})` : ''}
-                        </button>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )
-            }}
-          </ConnectButton.Custom>
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/20">
+                <Chrome className="h-5 w-5 text-red-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">Google</p>
+                <p className="text-xs text-white/50">Social login</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1DA1F2]/20">
+                <svg className="h-5 w-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">Twitter</p>
+                <p className="text-xs text-white/50">Social login</p>
+              </div>
+            </div>
+          </div>
 
           {/* Supported Wallets Info */}
-          <div className="text-center">
+          <div className="mt-6 text-center">
             <p className="text-sm text-white/40 mb-3">Supported Wallets</p>
             <div className="flex items-center justify-center gap-4">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
@@ -168,7 +151,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="mt-8 text-center text-xs text-white/30">
-          By connecting, you agree to our Terms of Service and Privacy Policy
+          By signing in, you agree to our Terms of Service and Privacy Policy
         </p>
       </div>
     </div>

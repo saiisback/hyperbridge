@@ -1,48 +1,64 @@
 'use client'
 
 import * as React from 'react'
-import { useAccount, useDisconnect } from 'wagmi'
-import { useConnectModal } from '@rainbow-me/rainbowkit'
+import { useWallets, usePrivy } from '@privy-io/react-auth'
+import { useAuth } from './auth-context'
 
 interface WalletContextType {
   address: string | undefined
   isConnected: boolean
   isConnecting: boolean
-  openConnectModal: (() => void) | undefined
-  disconnect: () => void
   walletType: string | null
+  disconnect: () => void
+  connectWallet: () => void
 }
 
 const WalletContext = React.createContext<WalletContextType | null>(null)
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const { address, isConnected, isConnecting, connector } = useAccount()
-  const { disconnect } = useDisconnect()
-  const { openConnectModal } = useConnectModal()
+  const { user, logout, login } = useAuth()
+  const { ready } = usePrivy()
+  const { wallets } = useWallets()
+
+  // Get the primary wallet or first available
+  const activeWallet = React.useMemo(() => {
+    if (!wallets.length) return null
+
+    // Try to find primary wallet
+    if (user.primaryWallet) {
+      const primary = wallets.find(
+        (w) => w.address.toLowerCase() === user.primaryWallet?.toLowerCase()
+      )
+      if (primary) return primary
+    }
+
+    // Fall back to first wallet
+    return wallets[0]
+  }, [wallets, user.primaryWallet])
 
   const walletType = React.useMemo(() => {
-    if (!connector) return null
-    const name = connector.name.toLowerCase()
-    if (name.includes('metamask')) return 'metamask'
-    if (name.includes('walletconnect')) return 'walletconnect'
-    if (name.includes('coinbase')) return 'coinbase'
-    return name
-  }, [connector])
+    if (!activeWallet) return null
+    const clientType = activeWallet.walletClientType?.toLowerCase() || ''
+    if (clientType.includes('metamask')) return 'metamask'
+    if (clientType.includes('walletconnect')) return 'walletconnect'
+    if (clientType.includes('coinbase')) return 'coinbase'
+    if (clientType.includes('privy')) return 'embedded'
+    return clientType || 'unknown'
+  }, [activeWallet])
 
-  const value = React.useMemo<WalletContextType>(() => ({
-    address,
-    isConnected,
-    isConnecting,
-    openConnectModal,
-    disconnect,
-    walletType,
-  }), [address, isConnected, isConnecting, openConnectModal, disconnect, walletType])
-
-  return (
-    <WalletContext.Provider value={value}>
-      {children}
-    </WalletContext.Provider>
+  const value = React.useMemo<WalletContextType>(
+    () => ({
+      address: activeWallet?.address,
+      isConnected: user.isAuthenticated && !!activeWallet,
+      isConnecting: !ready,
+      walletType,
+      disconnect: logout,
+      connectWallet: login,
+    }),
+    [activeWallet, user.isAuthenticated, ready, walletType, logout, login]
   )
+
+  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
 }
 
 export function useWallet() {

@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  privyId       String    @unique @map("privy_id")
+  name          String?
+  avatarUrl     String?   @map("avatar_url")
+  email         String?
+  primaryWallet String?   @map("primary_wallet")
+  isActive      Boolean   @default(true) @map("is_active")
+  kycVerified   Boolean   @default(false) @map("kyc_verified")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamptz
+
+  profile             Profile?
+  wallets             UserWallet[]
+  transactions        Transaction[]
+  referralsAsReferrer Referral[]   @relation("ReferrerRelation")
+  referralsAsReferee  Referral[]   @relation("RefereeRelation")
+
+  @@map("users")
+}
+
+model UserWallet {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  walletAddress String   @map("wallet_address")
+  chainType     String   @default("ethereum") @map("chain_type")
+  walletClient  String?  @map("wallet_client")
+  isPrimary     Boolean  @default(false) @map("is_primary")
+  linkedAt      DateTime @default(now()) @map("linked_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([walletAddress])
+  @@map("user_wallets")
+}
+
+model Profile {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @unique @map("user_id") @db.Uuid
+  totalBalance     Decimal  @default(0) @map("total_balance") @db.Decimal(18, 8)
+  availableBalance Decimal  @default(0) @map("available_balance") @db.Decimal(18, 8)
+  totalInvested    Decimal  @default(0) @map("total_invested") @db.Decimal(18, 8)
+  referralCode     String?  @unique @map("referral_code")
+  referredBy       String?  @map("referred_by")
+  notificationEmail Boolean @default(true) @map("notification_email")
+  notificationPush  Boolean @default(true) @map("notification_push")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+enum TransactionType {
+  deposit
+  withdraw
+  roi
+  referral
+}
+
+enum TransactionStatus {
+  pending
+  completed
+  failed
+}
+
+model Transaction {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String            @map("user_id") @db.Uuid
+  type          TransactionType
+  amount        Decimal           @db.Decimal(18, 8)
+  status        TransactionStatus @default(pending)
+  txHash        String?           @map("tx_hash")
+  walletAddress String?           @map("wallet_address")
+  metadata      Json              @default("{}")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Referral {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referrerId    String   @map("referrer_id") @db.Uuid
+  refereeId     String   @map("referee_id") @db.Uuid
+  level         Int      @default(1)
+  totalEarnings Decimal  @default(0) @map("total_earnings") @db.Decimal(18, 8)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  referrer User @relation("ReferrerRelation", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee  User @relation("RefereeRelation", fields: [refereeId], references: [id], onDelete: Cascade)
+
+  @@unique([referrerId, refereeId])
+  @@map("referrals")
+}

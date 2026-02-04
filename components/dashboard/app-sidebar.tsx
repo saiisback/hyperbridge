@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { useWallet } from '@/hooks/use-wallet'
+import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
 
 const navigationItems = [
@@ -70,7 +70,25 @@ function truncateAddress(address: string) {
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { address, disconnect } = useWallet()
+  const { user, logout } = useAuth()
+
+  const displayName = user.name || 'Anonymous'
+  const address = user.primaryWallet
+  const email = user.email
+
+  // Get initials for avatar
+  const getInitials = () => {
+    if (user.name) {
+      return user.name.slice(0, 2).toUpperCase()
+    }
+    if (address) {
+      return address.slice(2, 4).toUpperCase()
+    }
+    if (email) {
+      return email.slice(0, 2).toUpperCase()
+    }
+    return 'XX'
+  }
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -145,15 +163,15 @@ export function AppSidebar() {
                 >
                   <Avatar className="size-8 rounded-lg border border-orange-500/50">
                     <AvatarFallback className="rounded-lg bg-orange-500/20 text-orange-500 text-xs">
-                      {address?.slice(2, 4).toUpperCase() || 'XX'}
+                      {getInitials()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold text-white">
-                      Connected
+                      {displayName}
                     </span>
                     <span className="truncate text-xs text-white/50">
-                      {address ? truncateAddress(address) : 'Not connected'}
+                      {address ? truncateAddress(address) : email || 'Not connected'}
                     </span>
                   </div>
                   <ChevronUp className="ml-auto size-4 text-white/50" />
@@ -169,17 +187,35 @@ export function AppSidebar() {
                   <div className="flex size-6 items-center justify-center rounded-md border border-white/10 bg-white/5">
                     <User className="size-4" />
                   </div>
-                  <span className="font-mono text-xs">
-                    {address ? truncateAddress(address) : 'Not connected'}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-sm">{displayName}</span>
+                    {address && (
+                      <span className="font-mono text-xs text-white/50">
+                        {truncateAddress(address)}
+                      </span>
+                    )}
+                    {email && !address && (
+                      <span className="text-xs text-white/50">{email}</span>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/profile"
+                    className="gap-2 p-2 text-white/70 focus:bg-white/10 focus:text-white cursor-pointer"
+                  >
+                    <User className="size-4" />
+                    Profile Settings
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-white/10" />
                 <DropdownMenuItem
-                  onClick={disconnect}
-                  className="gap-2 p-2 text-red-400 focus:bg-red-500/10 focus:text-red-400"
+                  onClick={logout}
+                  className="gap-2 p-2 text-red-400 focus:bg-red-500/10 focus:text-red-400 cursor-pointer"
                 >
                   <LogOut className="size-4" />
-                  Disconnect Wallet
+                  Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

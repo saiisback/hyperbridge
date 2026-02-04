@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { DashboardHeader } from '@/components/dashboard/dashboard-header'
-import { useWallet } from '@/hooks/use-wallet'
+import { useAuth } from '@/context/auth-context'
 
 export default function DashboardLayout({
   children,
@@ -13,7 +13,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const [mounted, setMounted] = useState(false)
-  const { isConnected } = useWallet()
+  const { isAuthenticated, isLoading, isReady } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
@@ -21,14 +21,14 @@ export default function DashboardLayout({
   }, [])
 
   useEffect(() => {
-    // Redirect to login if wallet is not connected (only after mount)
-    if (mounted && !isConnected) {
+    // Redirect to login if not authenticated (only after mount and ready)
+    if (mounted && isReady && !isLoading && !isAuthenticated) {
       router.push('/login')
     }
-  }, [mounted, isConnected, router])
+  }, [mounted, isReady, isLoading, isAuthenticated, router])
 
-  // Show loading state during hydration
-  if (!mounted) {
+  // Show loading state during hydration or auth loading
+  if (!mounted || !isReady || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="flex flex-col items-center gap-4">
@@ -37,6 +37,11 @@ export default function DashboardLayout({
         </div>
       </div>
     )
+  }
+
+  // Don't render dashboard if not authenticated
+  if (!isAuthenticated) {
+    return null
   }
 
   return (

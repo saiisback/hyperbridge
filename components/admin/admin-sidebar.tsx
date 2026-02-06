@@ -3,14 +3,14 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
+  Shield,
   LayoutDashboard,
-  Wallet,
-  TrendingUp,
-  User,
   Users,
+  ArrowLeftRight,
+  ArrowUpFromLine,
+  ArrowLeft,
   LogOut,
   ChevronUp,
-  Shield,
 } from 'lucide-react'
 
 import {
@@ -39,29 +39,24 @@ import { cn } from '@/lib/utils'
 
 const navigationItems = [
   {
-    title: 'Dashboard',
-    url: '/dashboard',
+    title: 'Overview',
+    url: '/admin',
     icon: LayoutDashboard,
   },
   {
-    title: 'Wallet',
-    url: '/wallet',
-    icon: Wallet,
-  },
-  {
-    title: 'Income',
-    url: '/income',
-    icon: TrendingUp,
-  },
-  {
-    title: 'Profile',
-    url: '/profile',
-    icon: User,
-  },
-  {
-    title: 'Team',
-    url: '/team',
+    title: 'Users',
+    url: '/admin/users',
     icon: Users,
+  },
+  {
+    title: 'Transactions',
+    url: '/admin/transactions',
+    icon: ArrowLeftRight,
+  },
+  {
+    title: 'Withdrawals',
+    url: '/admin/withdrawals',
+    icon: ArrowUpFromLine,
   },
 ]
 
@@ -69,26 +64,22 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-export function AppSidebar() {
+export function AdminSidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
 
-  const displayName = user.name || 'Anonymous'
+  const displayName = user.name || 'Admin'
   const address = user.primaryWallet
   const email = user.email
 
-  // Get initials for avatar
   const getInitials = () => {
     if (user.name) {
       return user.name.slice(0, 2).toUpperCase()
     }
-    if (address) {
-      return address.slice(2, 4).toUpperCase()
-    }
     if (email) {
       return email.slice(0, 2).toUpperCase()
     }
-    return 'XX'
+    return 'AD'
   }
 
   return (
@@ -97,13 +88,13 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-orange-500 text-white shadow-lg shadow-orange-500/25">
-                  <Wallet className="size-4" />
+              <Link href="/admin">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-red-600 text-white shadow-lg shadow-red-600/25">
+                  <Shield className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold text-white">HyperBridge</span>
-                  <span className="text-xs text-white/50">Dashboard</span>
+                  <span className="text-xs text-white/50">Admin Panel</span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -114,7 +105,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-white/50">
-            Navigation
+            Management
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -129,9 +120,9 @@ export function AppSidebar() {
                       className={cn(
                         'transition-all duration-200',
                         isActive && [
-                          'bg-orange-500/20 text-orange-500',
-                          'shadow-[0_0_20px_rgba(249,115,22,0.25)]',
-                          'hover:bg-orange-500/30 hover:text-orange-400',
+                          'bg-red-600/20 text-red-500',
+                          'shadow-[0_0_20px_rgba(220,38,38,0.25)]',
+                          'hover:bg-red-600/30 hover:text-red-400',
                         ]
                       )}
                     >
@@ -139,7 +130,7 @@ export function AppSidebar() {
                         <item.icon
                           className={cn(
                             'transition-colors',
-                            isActive ? 'text-orange-500' : 'text-white/70'
+                            isActive ? 'text-red-500' : 'text-white/70'
                           )}
                         />
                         <span>{item.title}</span>
@@ -148,20 +139,21 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 )
               })}
-              {user.isAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip="Admin Panel"
-                    className="transition-all duration-200"
-                  >
-                    <Link href="/admin">
-                      <Shield className="text-red-500" />
-                      <span className="text-red-500">Admin Panel</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Back to Dashboard">
+                  <Link href="/dashboard" className="text-white/50 hover:text-white">
+                    <ArrowLeft className="text-white/50" />
+                    <span>Back to Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -176,8 +168,8 @@ export function AppSidebar() {
                   size="lg"
                   className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                  <Avatar className="size-8 rounded-lg border border-orange-500/50">
-                    <AvatarFallback className="rounded-lg bg-orange-500/20 text-orange-500 text-xs">
+                  <Avatar className="size-8 rounded-lg border border-red-500/50">
+                    <AvatarFallback className="rounded-lg bg-red-600/20 text-red-500 text-xs">
                       {getInitials()}
                     </AvatarFallback>
                   </Avatar>
@@ -186,7 +178,7 @@ export function AppSidebar() {
                       {displayName}
                     </span>
                     <span className="truncate text-xs text-white/50">
-                      {address ? truncateAddress(address) : email || 'Not connected'}
+                      {address ? truncateAddress(address) : email || 'Admin'}
                     </span>
                   </div>
                   <ChevronUp className="ml-auto size-4 text-white/50" />
@@ -198,30 +190,13 @@ export function AppSidebar() {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuItem className="gap-2 p-2 text-white/70 focus:bg-white/10 focus:text-white">
-                  <div className="flex size-6 items-center justify-center rounded-md border border-white/10 bg-white/5">
-                    <User className="size-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm">{displayName}</span>
-                    {address && (
-                      <span className="font-mono text-xs text-white/50">
-                        {truncateAddress(address)}
-                      </span>
-                    )}
-                    {email && !address && (
-                      <span className="text-xs text-white/50">{email}</span>
-                    )}
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator className="bg-white/10" />
                 <DropdownMenuItem asChild>
                   <Link
-                    href="/profile"
+                    href="/dashboard"
                     className="gap-2 p-2 text-white/70 focus:bg-white/10 focus:text-white cursor-pointer"
                   >
-                    <User className="size-4" />
-                    Profile Settings
+                    <ArrowLeft className="size-4" />
+                    Back to Dashboard
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-white/10" />

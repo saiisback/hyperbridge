@@ -47,6 +47,7 @@ export default function WalletPage() {
   const [withdrawAddress, setWithdrawAddress] = useState('')
   const [copied, setCopied] = useState(false)
   const [isDepositing, setIsDepositing] = useState(false)
+  const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
 
@@ -192,8 +193,8 @@ export default function WalletPage() {
     }
   }
 
-  // Handle mock withdraw
-  const handleWithdraw = () => {
+  // Handle withdraw
+  const handleWithdraw = async () => {
     if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) {
       toast({
         title: 'Invalid amount',
@@ -221,13 +222,45 @@ export default function WalletPage() {
       return
     }
 
-    // Mock withdrawal - just show success toast
-    toast({
-      title: 'Withdrawal request submitted',
-      description: 'Your withdrawal request is being processed. This may take 24-48 hours.',
-    })
-    setWithdrawAmount('')
-    setWithdrawAddress('')
+    setIsWithdrawing(true)
+    try {
+      const response = await fetch('/api/wallet/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          privyId: user.privyId,
+          amount: withdrawAmount,
+          walletAddress: withdrawAddress,
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: 'Withdrawal request submitted',
+          description: 'Your withdrawal request is pending admin approval. This may take 24-48 hours.',
+        })
+        setWithdrawAmount('')
+        setWithdrawAddress('')
+        await refreshUser()
+        await fetchTransactions()
+      } else {
+        const errorData = await response.json()
+        toast({
+          title: 'Withdrawal failed',
+          description: errorData.error || 'Failed to process withdrawal',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Withdrawal error:', error)
+      toast({
+        title: 'Withdrawal failed',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsWithdrawing(false)
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -439,8 +472,16 @@ export default function WalletPage() {
                 background="rgba(249, 115, 22, 1)"
                 className="w-full text-white"
                 onClick={handleWithdraw}
+                disabled={isWithdrawing}
               >
-                Withdraw Funds
+                {isWithdrawing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  'Withdraw Funds'
+                )}
               </ShimmerButton>
             </CardContent>
           </Card>

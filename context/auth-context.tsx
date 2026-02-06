@@ -222,6 +222,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       primaryWallet,
       avatarUrl: dbUser?.avatarUrl || null,
       isActive: dbUser?.isActive ?? true,
+      role: dbUser?.role || 'user',
+      isAdmin: dbUser?.role === 'admin',
       isAuthenticated: authenticated,
       isLoading,
       authMethod,

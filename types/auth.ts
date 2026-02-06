@@ -26,6 +26,8 @@ export interface AuthUser {
   primaryWallet: string | null
   avatarUrl: string | null
   isActive: boolean
+  role: 'user' | 'admin'
+  isAdmin: boolean
 
   // Auth state
   isAuthenticated: boolean

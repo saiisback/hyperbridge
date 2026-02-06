@@ -1,105 +1,32 @@
 'use client'
 
-import { Wallet, TrendingUp, Users, DollarSign, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Wallet, TrendingUp, Users, DollarSign, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { useWallet } from '@/hooks/use-wallet'
+import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
 
-const stats = [
-  {
-    title: 'Total Balance',
-    value: '$12,450.00',
-    change: '+12.5%',
-    changeType: 'positive' as const,
-    icon: Wallet,
-  },
-  {
-    title: 'ROI Income',
-    value: '$2,340.00',
-    change: '+8.2%',
-    changeType: 'positive' as const,
-    icon: TrendingUp,
-  },
-  {
-    title: 'Referral Income',
-    value: '$890.00',
-    change: '+15.3%',
-    changeType: 'positive' as const,
-    icon: DollarSign,
-  },
-  {
-    title: 'Team Size',
-    value: '48',
-    change: '+5',
-    changeType: 'positive' as const,
-    icon: Users,
-  },
-]
-
-const recentActivities = [
-  {
-    id: 1,
-    type: 'deposit',
-    amount: '+$500.00',
-    description: 'Deposit received',
-    time: '2 hours ago',
-    status: 'completed',
-  },
-  {
-    id: 2,
-    type: 'roi',
-    amount: '+$45.00',
-    description: 'Daily ROI credited',
-    time: '5 hours ago',
-    status: 'completed',
-  },
-  {
-    id: 3,
-    type: 'referral',
-    amount: '+$25.00',
-    description: 'Referral bonus from Level 1',
-    time: '1 day ago',
-    status: 'completed',
-  },
-  {
-    id: 4,
-    type: 'withdrawal',
-    amount: '-$200.00',
-    description: 'Withdrawal processed',
-    time: '2 days ago',
-    status: 'completed',
-  },
-]
-
-// Chart data
-const earningsData = [
-  { month: 'Jan', roi: 420, referral: 180 },
-  { month: 'Feb', roi: 380, referral: 220 },
-  { month: 'Mar', roi: 520, referral: 280 },
-  { month: 'Apr', roi: 480, referral: 320 },
-  { month: 'May', roi: 620, referral: 380 },
-  { month: 'Jun', roi: 580, referral: 420 },
-  { month: 'Jul', roi: 720, referral: 480 },
-]
-
-const balanceData = [
-  { day: 'Mon', balance: 10200 },
-  { day: 'Tue', balance: 10800 },
-  { day: 'Wed', balance: 11200 },
-  { day: 'Thu', balance: 10900 },
-  { day: 'Fri', balance: 11600 },
-  { day: 'Sat', balance: 12100 },
-  { day: 'Sun', balance: 12450 },
-]
-
-const portfolioData = [
-  { name: 'Active Investment', value: 8500, color: '#f97316' },
-  { name: 'ROI Earnings', value: 2340, color: '#22c55e' },
-  { name: 'Referral Earnings', value: 890, color: '#3b82f6' },
-  { name: 'Available', value: 720, color: '#a855f7' },
-]
+interface DashboardStats {
+  totalBalance: number
+  availableBalance: number
+  totalInvested: number
+  totalRoiIncome: number
+  totalReferralIncome: number
+  teamSize: number
+  recentActivities: {
+    id: string
+    type: string
+    amount: number
+    status: string
+    createdAt: string
+  }[]
+  monthlyEarnings: { month: string; roi: number; referral: number }[]
+  balanceHistory: { day: string; balance: number }[]
+  portfolioData: { name: string; value: number; color: string }[]
+}
 
 const earningsConfig = {
   roi: { label: 'ROI Income', color: '#f97316' },
@@ -112,6 +39,85 @@ const balanceConfig = {
 
 export default function DashboardPage() {
   const { address } = useWallet()
+  const { user } = useAuth()
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user.privyId) return
+
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`/api/dashboard/stats?privyId=${user.privyId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setStats(data)
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard stats:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStats()
+  }, [user.privyId])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      </div>
+    )
+  }
+
+  const statCards = [
+    {
+      title: 'Total Balance',
+      value: stats ? `${stats.totalBalance.toFixed(4)} ETH` : '0 ETH',
+      icon: Wallet,
+    },
+    {
+      title: 'ROI Income',
+      value: stats ? `${stats.totalRoiIncome.toFixed(4)} ETH` : '0 ETH',
+      icon: TrendingUp,
+    },
+    {
+      title: 'Referral Income',
+      value: stats ? `${stats.totalReferralIncome.toFixed(4)} ETH` : '0 ETH',
+      icon: DollarSign,
+    },
+    {
+      title: 'Team Size',
+      value: stats ? `${stats.teamSize}` : '0',
+      icon: Users,
+    },
+  ]
+
+  const recentActivities = stats?.recentActivities ?? []
+  const monthlyEarnings = stats?.monthlyEarnings ?? []
+  const balanceHistory = stats?.balanceHistory ?? []
+  const portfolioData = stats?.portfolioData ?? []
+
+  const formatActivityDescription = (type: string) => {
+    switch (type) {
+      case 'deposit': return 'Deposit received'
+      case 'roi': return 'Daily ROI credited'
+      case 'referral': return 'Referral bonus'
+      case 'withdraw': return 'Withdrawal processed'
+      default: return type
+    }
+  }
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const minutes = Math.floor(diff / 60000)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
 
   return (
     <div className="space-y-6">
@@ -130,7 +136,7 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {statCards.map((stat) => (
           <Card
             key={stat.title}
             className="bg-black/50 backdrop-blur-sm border-white/10 hover:border-orange-500/30 transition-all duration-300 rounded-xl hover:shadow-lg hover:shadow-orange-500/10"
@@ -145,23 +151,6 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">{stat.value}</div>
-              <div className="flex items-center text-xs mt-1">
-                {stat.changeType === 'positive' ? (
-                  <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
-                ) : (
-                  <ArrowDownRight className="h-3 w-3 text-red-500 mr-1" />
-                )}
-                <span
-                  className={cn(
-                    stat.changeType === 'positive'
-                      ? 'text-green-500'
-                      : 'text-red-500'
-                  )}
-                >
-                  {stat.change}
-                </span>
-                <span className="text-white/50 ml-1">from last month</span>
-              </div>
             </CardContent>
           </Card>
         ))}
@@ -181,27 +170,33 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={balanceConfig} className="h-[200px] w-full">
-              <AreaChart data={balanceData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="day" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area
-                  type="monotone"
-                  dataKey="balance"
-                  stroke="#f97316"
-                  strokeWidth={2}
-                  fill="url(#balanceGradient)"
-                />
-              </AreaChart>
-            </ChartContainer>
+            {balanceHistory.length > 0 ? (
+              <ChartContainer config={balanceConfig} className="h-[200px] w-full">
+                <AreaChart data={balanceHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f97316" stopOpacity={0.5} />
+                      <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis dataKey="day" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value.toFixed(2)}`} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="balance"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    fill="url(#balanceGradient)"
+                  />
+                </AreaChart>
+              </ChartContainer>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-white/40">
+                No balance data yet
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -217,26 +212,34 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ChartContainer config={earningsConfig} className="h-[200px] w-full">
-              <BarChart data={earningsData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="roi" fill="#f97316" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="referral" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
-            <div className="flex items-center justify-center gap-6 mt-4">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-sm bg-orange-500" />
-                <span className="text-xs text-white/70">ROI Income</span>
+            {monthlyEarnings.length > 0 ? (
+              <>
+                <ChartContainer config={earningsConfig} className="h-[200px] w-full">
+                  <BarChart data={monthlyEarnings} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                    <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="roi" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="referral" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ChartContainer>
+                <div className="flex items-center justify-center gap-6 mt-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-sm bg-orange-500" />
+                    <span className="text-xs text-white/70">ROI Income</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-sm bg-blue-500" />
+                    <span className="text-xs text-white/70">Referral Income</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-white/40">
+                No earnings data yet
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-sm bg-blue-500" />
-                <span className="text-xs text-white/70">Referral Income</span>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -252,31 +255,39 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex justify-center">
-              <PieChart width={180} height={180}>
-                <Pie
-                  data={portfolioData}
-                  cx={90}
-                  cy={90}
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={3}
-                  dataKey="value"
-                >
-                  {portfolioData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {portfolioData.map((item) => (
-                <div key={item.name} className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-xs text-white/70 truncate">{item.name}</span>
+            {portfolioData.some((d) => d.value > 0) ? (
+              <>
+                <div className="flex justify-center">
+                  <PieChart width={180} height={180}>
+                    <Pie
+                      data={portfolioData.filter((d) => d.value > 0)}
+                      cx={90}
+                      cy={90}
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {portfolioData.filter((d) => d.value > 0).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
                 </div>
-              ))}
-            </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  {portfolioData.map((item) => (
+                    <div key={item.name} className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-xs text-white/70 truncate">{item.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-white/40">
+                No portfolio data yet
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -292,52 +303,56 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {recentActivities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
+            {recentActivities.length > 0 ? (
+              <div className="space-y-3">
+                {recentActivities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          'flex h-10 w-10 items-center justify-center rounded-full',
+                          activity.type === 'withdraw'
+                            ? 'bg-red-500/20 text-red-500'
+                            : 'bg-green-500/20 text-green-500'
+                        )}
+                      >
+                        {activity.type === 'withdraw' ? (
+                          <ArrowDownRight className="h-5 w-5" />
+                        ) : (
+                          <ArrowUpRight className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-white text-sm">
+                          {formatActivityDescription(activity.type)}
+                        </p>
+                        <p className="text-xs text-white/50">{timeAgo(activity.createdAt)}</p>
+                      </div>
+                    </div>
                     <div
                       className={cn(
-                        'flex h-10 w-10 items-center justify-center rounded-full',
-                        activity.type === 'withdrawal'
-                          ? 'bg-red-500/20 text-red-500'
-                          : 'bg-green-500/20 text-green-500'
+                        'font-semibold text-sm',
+                        activity.type === 'withdraw'
+                          ? 'text-red-500'
+                          : 'text-green-500'
                       )}
                     >
-                      {activity.type === 'withdrawal' ? (
-                        <ArrowDownRight className="h-5 w-5" />
-                      ) : (
-                        <ArrowUpRight className="h-5 w-5" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-white text-sm">
-                        {activity.description}
-                      </p>
-                      <p className="text-xs text-white/50">{activity.time}</p>
+                      {activity.type === 'withdraw' ? '-' : '+'}{activity.amount.toFixed(4)} ETH
                     </div>
                   </div>
-                  <div
-                    className={cn(
-                      'font-semibold text-sm',
-                      activity.type === 'withdrawal'
-                        ? 'text-red-500'
-                        : 'text-green-500'
-                    )}
-                  >
-                    {activity.amount}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-white/40">
+                No recent activity
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
-
-      
     </div>
   )
 }

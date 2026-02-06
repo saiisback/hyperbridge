@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Update profile balance
+        // Update profile balance and totalInvested
         const updatedProfile = await tx.profile.update({
           where: { userId: user.id },
           data: {
@@ -127,6 +127,9 @@ export async function POST(request: NextRequest) {
               increment: parseFloat(actualAmountEth),
             },
             totalBalance: {
+              increment: parseFloat(actualAmountEth),
+            },
+            totalInvested: {
               increment: parseFloat(actualAmountEth),
             },
           },

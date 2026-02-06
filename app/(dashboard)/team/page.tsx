@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Users, Copy, Check, UserPlus, TrendingUp } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Users, Copy, Check, UserPlus, TrendingUp, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -13,38 +13,54 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useWallet } from '@/hooks/use-wallet'
+import { useAuth } from '@/context/auth-context'
 
-const teamLevel1 = [
-  { address: '0x1234...5678', joinDate: '2024-01-10', investment: '$1,000', status: 'active' },
-  { address: '0xabcd...efgh', joinDate: '2024-01-09', investment: '$500', status: 'active' },
-  { address: '0x9876...5432', joinDate: '2024-01-08', investment: '$2,000', status: 'active' },
-  { address: '0xijkl...mnop', joinDate: '2024-01-07', investment: '$750', status: 'active' },
-  { address: '0xqrst...uvwx', joinDate: '2024-01-06', investment: '$1,500', status: 'inactive' },
-  { address: '0xyzab...cdef', joinDate: '2024-01-05', investment: '$300', status: 'active' },
-]
+interface TeamMember {
+  address: string
+  joinDate: string
+  investment: number
+  status: string
+}
 
-const teamLevel2 = [
-  { address: '0x2345...6789', joinDate: '2024-01-11', investment: '$800', status: 'active' },
-  { address: '0xbcde...fghi', joinDate: '2024-01-10', investment: '$450', status: 'active' },
-  { address: '0x8765...4321', joinDate: '2024-01-09', investment: '$1,200', status: 'active' },
-  { address: '0xjklm...nopq', joinDate: '2024-01-08', investment: '$600', status: 'inactive' },
-  { address: '0xrstu...vwxy', joinDate: '2024-01-07', investment: '$900', status: 'active' },
-]
-
-const teamLevel3 = [
-  { address: '0x3456...7890', joinDate: '2024-01-12', investment: '$700', status: 'active' },
-  { address: '0xcdef...ghij', joinDate: '2024-01-11', investment: '$350', status: 'active' },
-  { address: '0x7654...3210', joinDate: '2024-01-10', investment: '$1,100', status: 'inactive' },
-]
+interface TeamData {
+  levels: Record<number, TeamMember[]>
+  counts: {
+    level1: number
+    level2: number
+    level3: number
+    total: number
+  }
+  referralCode: string | null
+}
 
 export default function TeamPage() {
-  const { address } = useWallet()
+  const { user } = useAuth()
   const [copied, setCopied] = useState(false)
+  const [data, setData] = useState<TeamData | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const referralLink = address
-    ? `https://hyperbridge.io/ref/${address.slice(0, 8)}`
-    : 'Connect wallet to get your referral link'
+  useEffect(() => {
+    if (!user.privyId) return
+
+    const fetchTeam = async () => {
+      try {
+        const res = await fetch(`/api/team?privyId=${user.privyId}`)
+        if (res.ok) {
+          setData(await res.json())
+        }
+      } catch (error) {
+        console.error('Failed to fetch team data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTeam()
+  }, [user.privyId])
+
+  const referralLink = data?.referralCode
+    ? `${window.location.origin}/ref/${data.referralCode}`
+    : 'No referral code available'
 
   const copyReferralLink = () => {
     navigator.clipboard.writeText(referralLink)
@@ -60,28 +76,53 @@ export default function TeamPage() {
     )
   }
 
-  const renderTeamTable = (members: typeof teamLevel1) => (
-    <Table>
-      <TableHeader>
-        <TableRow className="border-white/10 hover:bg-transparent">
-          <TableHead className="text-white/50">Member Address</TableHead>
-          <TableHead className="text-white/50">Join Date</TableHead>
-          <TableHead className="text-white/50">Investment</TableHead>
-          <TableHead className="text-white/50">Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {members.map((member, index) => (
-          <TableRow key={index} className="border-white/10 hover:bg-white/5">
-            <TableCell className="font-mono text-orange-500">{member.address}</TableCell>
-            <TableCell className="text-white/70">{member.joinDate}</TableCell>
-            <TableCell className="text-white font-medium">{member.investment}</TableCell>
-            <TableCell>{getStatusBadge(member.status)}</TableCell>
+  const renderTeamTable = (members: TeamMember[]) => {
+    if (members.length === 0) {
+      return (
+        <div className="py-8 text-center text-white/40">
+          No members at this level yet
+        </div>
+      )
+    }
+
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow className="border-white/10 hover:bg-transparent">
+            <TableHead className="text-white/50">Member Address</TableHead>
+            <TableHead className="text-white/50">Join Date</TableHead>
+            <TableHead className="text-white/50">Investment</TableHead>
+            <TableHead className="text-white/50">Status</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  )
+        </TableHeader>
+        <TableBody>
+          {members.map((member, index) => (
+            <TableRow key={index} className="border-white/10 hover:bg-white/5">
+              <TableCell className="font-mono text-orange-500">{member.address}</TableCell>
+              <TableCell className="text-white/70">{member.joinDate}</TableCell>
+              <TableCell className="text-white font-medium">
+                {member.investment.toFixed(4)} ETH
+              </TableCell>
+              <TableCell>{getStatusBadge(member.status)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      </div>
+    )
+  }
+
+  const level1 = data?.levels[1] ?? []
+  const level2 = data?.levels[2] ?? []
+  const level3 = data?.levels[3] ?? []
+  const counts = data?.counts ?? { level1: 0, level2: 0, level3: 0, total: 0 }
 
   return (
     <div className="space-y-6">
@@ -95,7 +136,7 @@ export default function TeamPage() {
               </div>
               <div>
                 <p className="text-sm text-white/70">Total Team</p>
-                <p className="text-2xl font-bold text-white">48</p>
+                <p className="text-2xl font-bold text-white">{counts.total}</p>
               </div>
             </div>
           </CardContent>
@@ -109,7 +150,7 @@ export default function TeamPage() {
               </div>
               <div>
                 <p className="text-sm text-white/70">Level 1</p>
-                <p className="text-2xl font-bold text-white">12</p>
+                <p className="text-2xl font-bold text-white">{counts.level1}</p>
               </div>
             </div>
           </CardContent>
@@ -123,7 +164,7 @@ export default function TeamPage() {
               </div>
               <div>
                 <p className="text-sm text-white/70">Level 2</p>
-                <p className="text-2xl font-bold text-white">24</p>
+                <p className="text-2xl font-bold text-white">{counts.level2}</p>
               </div>
             </div>
           </CardContent>
@@ -137,7 +178,7 @@ export default function TeamPage() {
               </div>
               <div>
                 <p className="text-sm text-white/70">Level 3</p>
-                <p className="text-2xl font-bold text-white">12</p>
+                <p className="text-2xl font-bold text-white">{counts.level3}</p>
               </div>
             </div>
           </CardContent>
@@ -198,19 +239,19 @@ export default function TeamPage() {
             value="level1"
             className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
           >
-            Level 1 ({teamLevel1.length})
+            Level 1 ({counts.level1})
           </TabsTrigger>
           <TabsTrigger
             value="level2"
             className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
           >
-            Level 2 ({teamLevel2.length})
+            Level 2 ({counts.level2})
           </TabsTrigger>
           <TabsTrigger
             value="level3"
             className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
           >
-            Level 3 ({teamLevel3.length})
+            Level 3 ({counts.level3})
           </TabsTrigger>
         </TabsList>
 
@@ -227,7 +268,7 @@ export default function TeamPage() {
                 Members you directly referred - 10% commission
               </CardDescription>
             </CardHeader>
-            <CardContent>{renderTeamTable(teamLevel1)}</CardContent>
+            <CardContent>{renderTeamTable(level1)}</CardContent>
           </Card>
         </TabsContent>
 
@@ -244,7 +285,7 @@ export default function TeamPage() {
                 Members referred by your Level 1 - 5% commission
               </CardDescription>
             </CardHeader>
-            <CardContent>{renderTeamTable(teamLevel2)}</CardContent>
+            <CardContent>{renderTeamTable(level2)}</CardContent>
           </Card>
         </TabsContent>
 
@@ -261,7 +302,7 @@ export default function TeamPage() {
                 Members referred by your Level 2 - 2% commission
               </CardDescription>
             </CardHeader>
-            <CardContent>{renderTeamTable(teamLevel3)}</CardContent>
+            <CardContent>{renderTeamTable(level3)}</CardContent>
           </Card>
         </TabsContent>
       </Tabs>

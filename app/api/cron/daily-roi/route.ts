@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma'
 
 const DAILY_ROI_RATE = 0.005 // 0.5%
 
-export async function POST(request: NextRequest) {
+async function handleDailyRoi(request: NextRequest) {
   try {
-    // Verify cron secret
+    // Verify authorization - supports both Vercel cron and manual calls
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
 
@@ -114,4 +114,14 @@ export async function POST(request: NextRequest) {
     console.error('Daily ROI cron error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+// Vercel Cron calls GET
+export async function GET(request: NextRequest) {
+  return handleDailyRoi(request)
+}
+
+// Manual calls use POST
+export async function POST(request: NextRequest) {
+  return handleDailyRoi(request)
 }

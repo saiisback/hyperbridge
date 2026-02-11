@@ -6,6 +6,20 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'recharts',
+      'viem',
+      'viem/chains',
+      'wagmi',
+      '@privy-io/react-auth',
+      '@privy-io/wagmi',
+      '@tanstack/react-query',
+      'date-fns',
+      '@radix-ui/react-icons',
+    ],
+  },
   webpack: (config) => {
     // Stub out optional wallet connector dependencies
     config.resolve.alias = {

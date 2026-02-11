@@ -20,44 +20,78 @@ import { useWallet } from '@/hooks/use-wallet'
 import { useAuth } from '@/context/auth-context'
 import { useToast } from '@/hooks/use-toast'
 import { useWallets } from '@privy-io/react-auth'
-import { parseEther } from 'viem'
+import { createWalletClient, createPublicClient, custom, http, parseEther, parseUnits, erc20Abi } from 'viem'
+import { sepolia } from 'viem/chains'
+import { formatINR } from '@/lib/utils'
 
 // Platform deposit address on Sepolia
 const PLATFORM_DEPOSIT_ADDRESS = '0x531dB6ca6baE892b191f7F9122beA32F228fbee1'
 const SEPOLIA_CHAIN_ID = 11155111
 
+// Token configuration (Sepolia testnet)
+const TOKENS = {
+  ETH: {
+    name: 'ETH',
+    address: null as null,
+    decimals: 18,
+  },
+  USDT: {
+    name: 'USDT',
+    address: '0x7169D38820dfd117C3FA1f22a697dBA58d90BA06' as `0x${string}`,
+    decimals: 6,
+  },
+} as const
+
+// ABI for minting test USDT tokens
+const USDT_MINT_ABI = [{
+  name: '_giveMeATokens',
+  type: 'function',
+  inputs: [{ name: 'amount', type: 'uint256' }],
+  outputs: [],
+  stateMutability: 'nonpayable',
+}] as const
+
+type TokenKey = keyof typeof TOKENS
+
 interface Transaction {
   id: string
   type: string
   amount: string
+  amountInr: string | null
+  conversionRate: string | null
+  token: string | null
   status: string
   date: string
   txHash: string | null
   walletAddress: string | null
+  metadata?: { token?: string; priceFetchedAt?: string }
 }
 
 export default function WalletPage() {
   const { address } = useWallet()
-  const { user, refreshUser } = useAuth()
+  const { user, refreshUser, setProfileData } = useAuth()
   const { wallets } = useWallets()
   const { toast } = useToast()
-  
+
   const [depositAmount, setDepositAmount] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawAddress, setWithdrawAddress] = useState('')
+  const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
   const [copied, setCopied] = useState(false)
   const [isDepositing, setIsDepositing] = useState(false)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
+  const [isMinting, setIsMinting] = useState(false)
 
-  // Get balance from profile
-  const availableBalance = user.profile?.availableBalance 
-    ? parseFloat(user.profile.availableBalance.toString()) 
+  const token = TOKENS[selectedToken]
+
+  // Get balance from profile (stored in INR)
+  const availableBalance = user.profile?.availableBalance
+    ? parseFloat(user.profile.availableBalance.toString())
     : 0
 
-  // Format balance for display (ETH value)
-  const formattedBalance = availableBalance.toFixed(6)
+  const formattedBalance = formatINR(availableBalance)
 
   // Fetch transactions
   const fetchTransactions = useCallback(async () => {
@@ -88,6 +122,74 @@ export default function WalletPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // Mint test tokens (Sepolia testnet only)
+  const handleMintTestTokens = async () => {
+    if (selectedToken === 'ETH') {
+      toast({
+        title: 'Use a faucet for ETH',
+        description: 'Get Sepolia ETH from faucet.sepolia.dev or faucets.chain.link/sepolia',
+      })
+      return
+    }
+
+    if (!wallets.length) {
+      toast({
+        title: 'No wallet connected',
+        description: 'Please connect your wallet first',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const activeWallet = wallets[0]
+    setIsMinting(true)
+
+    try {
+      try {
+        await activeWallet.switchChain(SEPOLIA_CHAIN_ID)
+      } catch {
+        // may already be on Sepolia
+      }
+
+      const ethereumProvider = await activeWallet.getEthereumProvider()
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(ethereumProvider),
+      })
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(),
+      })
+
+      const [account] = await walletClient.getAddresses()
+
+      const hash = await walletClient.writeContract({
+        account,
+        address: TOKENS.USDT.address,
+        abi: USDT_MINT_ABI,
+        functionName: '_giveMeATokens',
+        args: [BigInt(1000 * 10 ** 6)], // 1000 USDT
+      })
+
+      await publicClient.waitForTransactionReceipt({ hash })
+
+      toast({
+        title: 'Tokens minted!',
+        description: '1000 USDT has been added to your wallet',
+      })
+    } catch (error: unknown) {
+      console.error('Mint error:', error)
+      const msg = error instanceof Error ? error.message : 'Failed to mint tokens'
+      toast({
+        title: 'Mint failed',
+        description: msg,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsMinting(false)
+    }
+  }
+
   // Handle deposit
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) {
@@ -109,7 +211,7 @@ export default function WalletPage() {
     }
 
     const activeWallet = wallets[0]
-    
+
     setIsDepositing(true)
     try {
       // Switch to Sepolia if needed
@@ -119,20 +221,44 @@ export default function WalletPage() {
         console.log('Chain switch error (may already be on Sepolia):', switchError)
       }
 
-      // Get the provider from the wallet
-      const provider = await activeWallet.getEthersProvider()
-      const signer = provider.getSigner()
+      // Get the EIP-1193 provider from the wallet
+      const ethereumProvider = await activeWallet.getEthereumProvider()
+      const walletClient = createWalletClient({
+        chain: sepolia,
+        transport: custom(ethereumProvider),
+      })
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(),
+      })
+
+      const [account] = await walletClient.getAddresses()
 
       // Send transaction
       toast({
         title: 'Confirm transaction',
-        description: 'Please confirm the transaction in your wallet',
+        description: `Please confirm the ${token.name} transfer in your wallet`,
       })
 
-      const tx = await signer.sendTransaction({
-        to: PLATFORM_DEPOSIT_ADDRESS,
-        value: parseEther(depositAmount),
-      })
+      let hash: `0x${string}`
+
+      if (token.address) {
+        // ERC-20 token transfer (USDT)
+        hash = await walletClient.writeContract({
+          account,
+          address: token.address,
+          abi: erc20Abi,
+          functionName: 'transfer',
+          args: [PLATFORM_DEPOSIT_ADDRESS as `0x${string}`, parseUnits(depositAmount, token.decimals)],
+        })
+      } else {
+        // Native ETH transfer
+        hash = await walletClient.sendTransaction({
+          account,
+          to: PLATFORM_DEPOSIT_ADDRESS as `0x${string}`,
+          value: parseEther(depositAmount),
+        })
+      }
 
       toast({
         title: 'Transaction sent',
@@ -140,9 +266,9 @@ export default function WalletPage() {
       })
 
       // Wait for transaction to be mined
-      const receipt = await tx.wait()
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 1) {
+      if (receipt.status === 'success') {
         // Call our API to record the deposit
         const response = await fetch('/api/wallet/deposit', {
           method: 'POST',
@@ -152,24 +278,28 @@ export default function WalletPage() {
             txHash: receipt.transactionHash,
             amount: depositAmount,
             walletAddress: activeWallet.address,
+            token: selectedToken,
           }),
         })
 
+        const responseData = await response.json()
+
         if (response.ok) {
+          // Immediately update profile with the data returned from deposit API
+          if (responseData.profile) {
+            setProfileData(responseData.profile)
+          }
           toast({
             title: 'Deposit successful',
-            description: `${depositAmount} ETH has been added to your balance`,
+            description: `${depositAmount} ${token.name} has been added to your balance`,
           })
           setDepositAmount('')
-          // Refresh user data to update balance
           await refreshUser()
-          // Refresh transactions
           await fetchTransactions()
         } else {
-          const errorData = await response.json()
           toast({
             title: 'Deposit recording failed',
-            description: errorData.error || 'Failed to record deposit',
+            description: responseData.error || 'Failed to record deposit',
             variant: 'destructive',
           })
         }
@@ -231,6 +361,7 @@ export default function WalletPage() {
           privyId: user.privyId,
           amount: withdrawAmount,
           walletAddress: withdrawAddress,
+          token: selectedToken,
         }),
       })
 
@@ -285,6 +416,10 @@ export default function WalletPage() {
     return `${hash.slice(0, 6)}...${hash.slice(-4)}`
   }
 
+  const getTransactionToken = (tx: Transaction) => {
+    return tx.token || tx.metadata?.token || 'USDT'
+  }
+
   return (
     <div className="space-y-6">
       {/* Balance Card */}
@@ -293,7 +428,7 @@ export default function WalletPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-white/70">Available Balance</p>
-              <p className="text-4xl font-bold text-white mt-2">{formattedBalance} ETH</p>
+              <p className="text-4xl font-bold text-white mt-2">₹{formattedBalance}</p>
               <p className="text-sm text-white/50 mt-1">Sepolia Testnet</p>
             </div>
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/20 border border-orange-500/30">
@@ -302,6 +437,23 @@ export default function WalletPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Token Selector */}
+      <div className="flex gap-2">
+        {(Object.keys(TOKENS) as TokenKey[]).map((key) => (
+          <button
+            key={key}
+            onClick={() => setSelectedToken(key)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              selectedToken === key
+                ? 'bg-orange-500 text-white'
+                : 'bg-white/5 text-white/70 border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            {TOKENS[key].name}
+          </button>
+        ))}
+      </div>
 
       {/* Tabs */}
       <Tabs defaultValue="deposit" className="space-y-6">
@@ -333,22 +485,22 @@ export default function WalletPage() {
         <TabsContent value="deposit">
           <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
             <CardHeader>
-              <CardTitle className="text-white">Deposit Funds</CardTitle>
+              <CardTitle className="text-white">Deposit {token.name}</CardTitle>
               <CardDescription className="text-white/50">
-                Send ETH from your connected wallet to add funds
+                Send {token.name} from your connected wallet to add funds
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="depositAmount" className="text-white/70">
-                  Amount (ETH)
+                  Amount ({token.name})
                 </Label>
                 <Input
                   id="depositAmount"
                   type="number"
-                  step="0.001"
+                  step="0.01"
                   min="0"
-                  placeholder="Enter amount in ETH"
+                  placeholder={`Enter amount in ${token.name}`}
                   value={depositAmount}
                   onChange={(e) => setDepositAmount(e.target.value)}
                   className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
@@ -375,11 +527,38 @@ export default function WalletPage() {
                 </div>
               </div>
 
+              {token.address && (
+                <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                  <p className="text-sm text-white/70 mb-2">{token.name} Token Contract (Sepolia)</p>
+                  <code className="text-sm text-orange-500 font-mono break-all">
+                    {token.address}
+                  </code>
+                </div>
+              )}
+
               {address && (
                 <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
                   <p className="text-sm text-white/70 mb-1">Your Connected Wallet</p>
                   <code className="text-sm text-white font-mono break-all">{address}</code>
                 </div>
+              )}
+
+              {/* Mint test tokens (testnet only) */}
+              {token.address && address && (
+                <button
+                  onClick={handleMintTestTokens}
+                  disabled={isMinting}
+                  className="w-full py-2 px-4 rounded-lg border border-dashed border-white/20 text-white/60 hover:text-white hover:border-white/40 transition-colors text-sm disabled:opacity-50"
+                >
+                  {isMinting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Minting...
+                    </span>
+                  ) : (
+                    `Mint Test ${token.name} (Sepolia Faucet)`
+                  )}
+                </button>
               )}
 
               <ShimmerButton
@@ -395,7 +574,7 @@ export default function WalletPage() {
                     Processing...
                   </>
                 ) : (
-                  'Deposit ETH'
+                  `Deposit ${token.name}`
                 )}
               </ShimmerButton>
 
@@ -412,29 +591,29 @@ export default function WalletPage() {
         <TabsContent value="withdraw">
           <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
             <CardHeader>
-              <CardTitle className="text-white">Withdraw Funds</CardTitle>
+              <CardTitle className="text-white">Withdraw {token.name}</CardTitle>
               <CardDescription className="text-white/50">
-                Withdraw your earnings to your external wallet
+                Withdraw your earnings in {token.name} to your external wallet
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
                 <div className="flex items-center justify-between">
                   <span className="text-white/70">Available Balance</span>
-                  <span className="text-xl font-bold text-white">{formattedBalance} ETH</span>
+                  <span className="text-xl font-bold text-white">₹{formattedBalance}</span>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="withdrawAmount" className="text-white/70">
-                  Amount (ETH)
+                  Amount ({token.name})
                 </Label>
                 <Input
                   id="withdrawAmount"
                   type="number"
-                  step="0.001"
+                  step="0.01"
                   min="0"
-                  placeholder="Enter amount to withdraw"
+                  placeholder={`Enter amount in ${token.name}`}
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
@@ -456,13 +635,9 @@ export default function WalletPage() {
 
               <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/50">Network Fee (estimated)</span>
-                  <span className="text-white">~0.001 ETH</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
                   <span className="text-white/50">You will receive</span>
                   <span className="text-orange-500 font-semibold">
-                    {withdrawAmount ? Math.max(0, parseFloat(withdrawAmount) - 0.001).toFixed(6) : '0.000000'} ETH
+                    {withdrawAmount ? parseFloat(withdrawAmount).toFixed(2) : '0.00'} {token.name}
                   </span>
                 </div>
               </div>
@@ -480,7 +655,7 @@ export default function WalletPage() {
                     Processing...
                   </>
                 ) : (
-                  'Withdraw Funds'
+                  `Withdraw ${token.name}`
                 )}
               </ShimmerButton>
             </CardContent>
@@ -510,7 +685,9 @@ export default function WalletPage() {
                   <TableHeader>
                     <TableRow className="border-white/10 hover:bg-transparent">
                       <TableHead className="text-white/50">Type</TableHead>
-                      <TableHead className="text-white/50">Amount</TableHead>
+                      <TableHead className="text-white/50">Crypto</TableHead>
+                      <TableHead className="text-white/50">INR Value</TableHead>
+                      <TableHead className="text-white/50">Rate</TableHead>
                       <TableHead className="text-white/50">Status</TableHead>
                       <TableHead className="text-white/50">Date</TableHead>
                       <TableHead className="text-white/50">Tx Hash</TableHead>
@@ -520,12 +697,23 @@ export default function WalletPage() {
                     {transactions.map((tx) => (
                       <TableRow key={tx.id} className="border-white/10 hover:bg-white/5">
                         <TableCell className="text-white font-medium capitalize">{tx.type}</TableCell>
+                        <TableCell className="text-white/70">
+                          {parseFloat(tx.amount).toFixed(6)} {getTransactionToken(tx)}
+                        </TableCell>
                         <TableCell
                           className={
                             tx.type === 'deposit' ? 'text-green-500' : 'text-red-500'
                           }
                         >
-                          {tx.type === 'deposit' ? '+' : '-'}{parseFloat(tx.amount).toFixed(6)} ETH
+                          {tx.type === 'deposit' ? '+' : '-'}₹
+                          {tx.amountInr
+                            ? formatINR(parseFloat(tx.amountInr))
+                            : formatINR(parseFloat(tx.amount))}
+                        </TableCell>
+                        <TableCell className="text-white/50 text-xs">
+                          {tx.conversionRate
+                            ? `1 ${getTransactionToken(tx)} = ₹${parseFloat(tx.conversionRate).toLocaleString('en-IN')}`
+                            : '-'}
                         </TableCell>
                         <TableCell>{getStatusBadge(tx.status)}</TableCell>
                         <TableCell className="text-white/70">{formatDate(tx.date)}</TableCell>

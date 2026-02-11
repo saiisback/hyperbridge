@@ -81,15 +81,18 @@ enum TransactionStatus {
 }
 
 model Transaction {
-  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId        String            @map("user_id") @db.Uuid
-  type          TransactionType
-  amount        Decimal           @db.Decimal(18, 8)
-  status        TransactionStatus @default(pending)
-  txHash        String?           @map("tx_hash")
-  walletAddress String?           @map("wallet_address")
-  metadata      Json              @default("{}")
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String            @map("user_id") @db.Uuid
+  type           TransactionType
+  amount         Decimal           @db.Decimal(18, 8)
+  amountInr      Decimal?          @map("amount_inr") @db.Decimal(18, 2)
+  conversionRate Decimal?          @map("conversion_rate") @db.Decimal(18, 8)
+  token          String?
+  status         TransactionStatus @default(pending)
+  txHash         String?           @map("tx_hash")
+  walletAddress  String?           @map("wallet_address")
+  metadata       Json              @default("{}")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
       withdrawals: withdrawals.map((w) => ({
         id: w.id,
         amount: w.amount.toString(),
+        amountInr: w.amountInr?.toString() ?? null,
+        conversionRate: w.conversionRate?.toString() ?? null,
+        token: w.token,
         status: w.status,
         walletAddress: w.walletAddress,
         metadata: w.metadata,

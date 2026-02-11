@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
+import { formatINR } from '@/lib/utils'
 
 interface Stats {
   totalUsers: number
@@ -37,6 +38,7 @@ interface RecentTransaction {
   id: string
   type: string
   amount: string
+  amountInr: string | null
   status: string
   createdAt: string
   user: { name: string | null; email: string | null }
@@ -98,14 +100,14 @@ export default function AdminOverviewPage() {
     },
     {
       title: 'Total Deposits',
-      value: `${parseFloat(stats?.totalDeposits || '0').toFixed(4)} ETH`,
+      value: `₹${formatINR(parseFloat(stats?.totalDeposits || '0'))}`,
       subtitle: `${stats?.totalDepositCount || 0} deposits`,
       icon: ArrowDownToLine,
       color: 'green',
     },
     {
       title: 'Total Balance',
-      value: `${parseFloat(stats?.totalBalance || '0').toFixed(4)} ETH`,
+      value: `₹${formatINR(parseFloat(stats?.totalBalance || '0'))}`,
       subtitle: 'Across all users',
       icon: Wallet,
       color: 'orange',
@@ -113,7 +115,7 @@ export default function AdminOverviewPage() {
     {
       title: 'Pending Withdrawals',
       value: stats?.pendingWithdrawalCount || 0,
-      subtitle: `${parseFloat(stats?.pendingWithdrawalSum || '0').toFixed(4)} ETH pending`,
+      subtitle: `₹${formatINR(parseFloat(stats?.pendingWithdrawalSum || '0'))} pending`,
       icon: ArrowUpFromLine,
       color: 'red',
     },
@@ -181,7 +183,7 @@ export default function AdminOverviewPage() {
                       <TableCell className="text-white">{u.name || 'Anonymous'}</TableCell>
                       <TableCell className="text-white/70">{u.email || '-'}</TableCell>
                       <TableCell className="text-orange-500">
-                        {parseFloat(u.totalBalance).toFixed(4)} ETH
+                        ₹{formatINR(parseFloat(u.totalBalance))}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -220,7 +222,7 @@ export default function AdminOverviewPage() {
                         className={tx.type === 'deposit' ? 'text-green-500' : 'text-red-500'}
                       >
                         {tx.type === 'deposit' ? '+' : '-'}
-                        {parseFloat(tx.amount).toFixed(4)} ETH
+                        ₹{formatINR(parseFloat(tx.amountInr || tx.amount))}
                       </TableCell>
                       <TableCell>
                         <Badge

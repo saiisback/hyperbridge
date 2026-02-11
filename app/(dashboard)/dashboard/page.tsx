@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Wallet, TrendingUp, Users, DollarSign, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from 'lucide-react'
+import { Wallet, TrendingUp, IndianRupee, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { useWallet } from '@/hooks/use-wallet'
 import { useAuth } from '@/context/auth-context'
-import { cn } from '@/lib/utils'
+import { cn, formatINR } from '@/lib/utils'
 
 interface DashboardStats {
   totalBalance: number
@@ -15,7 +15,6 @@ interface DashboardStats {
   totalInvested: number
   totalRoiIncome: number
   totalReferralIncome: number
-  teamSize: number
   recentActivities: {
     id: string
     type: string
@@ -74,23 +73,18 @@ export default function DashboardPage() {
   const statCards = [
     {
       title: 'Total Balance',
-      value: stats ? `${stats.totalBalance.toFixed(4)} ETH` : '0 ETH',
+      value: stats ? `₹${formatINR(stats.totalBalance)}` : '₹0.00',
       icon: Wallet,
     },
     {
       title: 'ROI Income',
-      value: stats ? `${stats.totalRoiIncome.toFixed(4)} ETH` : '0 ETH',
+      value: stats ? `₹${formatINR(stats.totalRoiIncome)}` : '₹0.00',
       icon: TrendingUp,
     },
     {
       title: 'Referral Income',
-      value: stats ? `${stats.totalReferralIncome.toFixed(4)} ETH` : '0 ETH',
-      icon: DollarSign,
-    },
-    {
-      title: 'Team Size',
-      value: stats ? `${stats.teamSize}` : '0',
-      icon: Users,
+      value: stats ? `₹${formatINR(stats.totalReferralIncome)}` : '₹0.00',
+      icon: IndianRupee,
     },
   ]
 
@@ -135,7 +129,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {statCards.map((stat) => (
           <Card
             key={stat.title}
@@ -181,7 +175,7 @@ export default function DashboardPage() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                   <XAxis dataKey="day" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value.toFixed(2)}`} />
+                  <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${formatINR(value)}`} />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Area
                     type="monotone"
@@ -250,7 +244,7 @@ export default function DashboardPage() {
         <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-orange-500" />
+              <IndianRupee className="h-5 w-5 text-orange-500" />
               Portfolio Distribution
             </CardTitle>
           </CardHeader>
@@ -340,7 +334,7 @@ export default function DashboardPage() {
                           : 'text-green-500'
                       )}
                     >
-                      {activity.type === 'withdraw' ? '-' : '+'}{activity.amount.toFixed(4)} ETH
+                      {activity.type === 'withdraw' ? '-' : '+'}₹{formatINR(activity.amount)}
                     </div>
                   </div>
                 ))}

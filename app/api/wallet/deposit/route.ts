@@ -1,28 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createPublicClient, http, formatEther } from 'viem'
+import { createPublicClient, http, formatEther, formatUnits, decodeEventLog, erc20Abi } from 'viem'
 import { sepolia } from 'viem/chains'
+import { getTokenPriceInINR } from '@/lib/crypto-price'
 
 // Platform deposit address on Sepolia
 const PLATFORM_DEPOSIT_ADDRESS = '0x531dB6ca6baE892b191f7F9122beA32F228fbee1'.toLowerCase()
 
+// Allowed tokens on Sepolia (only USDT enabled)
+const ERC20_TOKENS: Record<string, { address: string; decimals: number }> = {
+  USDT: {
+    address: '0x7169D38820dfd117C3FA1f22a697dBA58d90BA06'.toLowerCase(),
+    decimals: 6,
+  },
+}
+
+const ALLOWED_TOKENS = ['ETH', 'USDT']
+
 // Create a public client for Sepolia to verify transactions
+// Using viem's default Sepolia transport (multi-RPC fallback) instead of
+// the unreliable https://rpc.sepolia.org single endpoint
 const publicClient = createPublicClient({
   chain: sepolia,
-  transport: http('https://rpc.sepolia.org'),
+  transport: http(),
 })
 
 interface DepositRequest {
   privyId: string
   txHash: string
-  amount: string // Amount in ETH as string
+  amount: string
   walletAddress: string
+  token: string
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: DepositRequest = await request.json()
-    const { privyId, txHash, amount, walletAddress } = body
+    const { privyId, txHash, amount, walletAddress, token } = body
 
     // Validate required fields
     if (!privyId) {
@@ -33,6 +47,9 @@ export async function POST(request: NextRequest) {
     }
     if (!amount) {
       return NextResponse.json({ error: 'Amount is required' }, { status: 400 })
+    }
+    if (!token || !ALLOWED_TOKENS.includes(token)) {
+      return NextResponse.json({ error: 'Invalid token. Must be ETH, USDT, or BTC' }, { status: 400 })
     }
 
     // Find user by privyId
@@ -64,6 +81,7 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         type: 'deposit',
         amount: parseFloat(amount),
+        token,
         status: 'pending',
         txHash: txHash.toLowerCase(),
         walletAddress: walletAddress?.toLowerCase() || null,
@@ -76,11 +94,20 @@ export async function POST(request: NextRequest) {
 
     // Verify transaction on Sepolia
     try {
-      const txReceipt = await publicClient.waitForTransactionReceipt({
+      // Use getTransactionReceipt instead of waitForTransactionReceipt
+      // since the frontend already confirmed the tx is mined before calling this API
+      let txReceipt = await publicClient.getTransactionReceipt({
         hash: txHash as `0x${string}`,
-        confirmations: 1,
-        timeout: 60_000, // 60 second timeout
       })
+
+      // Fallback: if receipt is not yet available, wait briefly
+      if (!txReceipt) {
+        txReceipt = await publicClient.waitForTransactionReceipt({
+          hash: txHash as `0x${string}`,
+          confirmations: 1,
+          timeout: 60_000,
+        })
+      }
 
       // Verify the transaction was successful
       if (txReceipt.status !== 'success') {
@@ -91,49 +118,166 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Transaction failed on chain' }, { status: 400 })
       }
 
-      // Get the actual transaction to verify recipient
       const tx = await publicClient.getTransaction({
         hash: txHash as `0x${string}`,
       })
 
-      // Verify the recipient is our platform address
-      if (tx.to?.toLowerCase() !== PLATFORM_DEPOSIT_ADDRESS) {
+      let actualAmount: string | null = null
+
+      if (token === 'ETH') {
+        // Native ETH transfer — verify recipient is platform address
+        if (tx.to?.toLowerCase() !== PLATFORM_DEPOSIT_ADDRESS) {
+          await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'failed' },
+          })
+          return NextResponse.json({ error: 'Invalid recipient address' }, { status: 400 })
+        }
+        actualAmount = formatEther(tx.value)
+      } else {
+        // ERC-20 transfer (USDT) — verify via Transfer event logs
+        const tokenConfig = ERC20_TOKENS[token]
+
+        if (tx.to?.toLowerCase() !== tokenConfig.address) {
+          await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'failed' },
+          })
+          return NextResponse.json({ error: 'Transaction was not sent to the expected token contract' }, { status: 400 })
+        }
+
+        for (const log of txReceipt.logs) {
+          if (log.address.toLowerCase() !== tokenConfig.address) continue
+
+          try {
+            const decoded = decodeEventLog({
+              abi: erc20Abi,
+              data: log.data,
+              topics: log.topics,
+            })
+
+            if (
+              decoded.eventName === 'Transfer' &&
+              decoded.args.to.toLowerCase() === PLATFORM_DEPOSIT_ADDRESS
+            ) {
+              actualAmount = formatUnits(decoded.args.value, tokenConfig.decimals)
+              break
+            }
+          } catch {
+            continue
+          }
+        }
+
+        if (!actualAmount) {
+          await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'failed' },
+          })
+          return NextResponse.json({ error: 'No valid token transfer to platform address found' }, { status: 400 })
+        }
+      }
+
+      // Fetch real-time INR conversion rate
+      let inrPrice: number
+      let priceFetchedAt: string
+      try {
+        const priceData = await getTokenPriceInINR(token)
+        inrPrice = priceData.inrPrice
+        priceFetchedAt = priceData.fetchedAt
+      } catch (priceError) {
+        console.error('Failed to fetch INR price:', priceError)
         await prisma.transaction.update({
           where: { id: transaction.id },
           data: { status: 'failed' },
         })
-        return NextResponse.json({ error: 'Invalid recipient address' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'Failed to fetch real-time INR conversion rate. Please try again.' },
+          { status: 500 }
+        )
       }
 
-      // Get the actual ETH value from the transaction
-      const actualAmountEth = formatEther(tx.value)
+      const cryptoAmount = parseFloat(actualAmount!)
+      const amountInr = cryptoAmount * inrPrice
 
-      // Update transaction and profile balance in a transaction
+      // Referral commission rate (10% for direct referrer)
+      const REFERRAL_COMMISSION_RATE = 0.10
+
+      // Update transaction and profile balance
       const result = await prisma.$transaction(async (tx) => {
-        // Update transaction to completed with actual amount
         const updatedTransaction = await tx.transaction.update({
           where: { id: transaction.id },
           data: {
             status: 'completed',
-            amount: parseFloat(actualAmountEth),
+            amount: cryptoAmount,
+            amountInr,
+            conversionRate: inrPrice,
+            metadata: {
+              network: 'sepolia',
+              platformAddress: PLATFORM_DEPOSIT_ADDRESS,
+              priceFetchedAt,
+            },
           },
         })
 
-        // Update profile balance and totalInvested
         const updatedProfile = await tx.profile.update({
           where: { userId: user.id },
           data: {
             availableBalance: {
-              increment: parseFloat(actualAmountEth),
+              increment: amountInr,
             },
             totalBalance: {
-              increment: parseFloat(actualAmountEth),
+              increment: amountInr,
             },
             totalInvested: {
-              increment: parseFloat(actualAmountEth),
+              increment: amountInr,
             },
           },
         })
+
+        // Pay referral commission to direct referrer
+        const referral = await tx.referral.findFirst({
+          where: { refereeId: user.id, level: 1 },
+        })
+
+        if (referral) {
+          const commission = amountInr * REFERRAL_COMMISSION_RATE
+
+          // Create referral transaction for the referrer
+          await tx.transaction.create({
+            data: {
+              userId: referral.referrerId,
+              type: 'referral',
+              amount: commission,
+              amountInr: commission,
+              token: 'INR',
+              status: 'completed',
+              metadata: {
+                fromUserId: user.id,
+                fromAddress: walletAddress || 'Unknown',
+                level: 1,
+                depositAmount: amountInr,
+                rate: `${REFERRAL_COMMISSION_RATE * 100}%`,
+              },
+            },
+          })
+
+          // Credit referrer's balance
+          await tx.profile.update({
+            where: { userId: referral.referrerId },
+            data: {
+              availableBalance: { increment: commission },
+              totalBalance: { increment: commission },
+            },
+          })
+
+          // Update referral total earnings
+          await tx.referral.update({
+            where: { id: referral.id },
+            data: {
+              totalEarnings: { increment: commission },
+            },
+          })
+        }
 
         return { transaction: updatedTransaction, profile: updatedProfile }
       })
@@ -142,12 +286,18 @@ export async function POST(request: NextRequest) {
         success: true,
         transaction: result.transaction,
         profile: result.profile,
-        message: 'Deposit confirmed and balance updated',
+        conversion: {
+          cryptoAmount,
+          token,
+          inrRate: inrPrice,
+          amountInr,
+          convertedAt: priceFetchedAt,
+        },
+        message: `${token} deposit confirmed — ${cryptoAmount} ${token} = ₹${amountInr.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       })
     } catch (verifyError) {
       console.error('Transaction verification error:', verifyError)
-      
-      // Update transaction status to failed
+
       await prisma.transaction.update({
         where: { id: transaction.id },
         data: { status: 'failed' },

@@ -27,10 +27,12 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
+import { formatINR } from '@/lib/utils'
 
 interface Withdrawal {
   id: string
   amount: string
+  amountInr: string | null
   status: string
   walletAddress: string | null
   metadata: Record<string, unknown>
@@ -202,7 +204,7 @@ export default function AdminWithdrawalsPage() {
                             {w.user.name || w.user.email || 'Unknown'}
                           </TableCell>
                           <TableCell className="text-red-500 font-medium">
-                            {parseFloat(w.amount).toFixed(6)} ETH
+                            ₹{formatINR(parseFloat(w.amountInr || w.amount))}
                           </TableCell>
                           <TableCell className="text-white/70 font-mono">
                             {w.walletAddress ? truncateAddress(w.walletAddress) : '-'}

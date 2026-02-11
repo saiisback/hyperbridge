@@ -70,28 +70,13 @@ export async function GET(request: NextRequest) {
     })
     const totalReferralIncome = Number(referralAgg._sum.amount ?? 0)
 
-    // Referral earnings grouped by level
+    // Direct referral stats (level 1 only)
     const referrals = await prisma.referral.findMany({
-      where: { referrerId: user.id },
+      where: { referrerId: user.id, level: 1 },
     })
 
-    const referralEarningsByLevel: Record<number, { members: number; earnings: number }> = {}
-    const levelPercentages: Record<number, string> = { 1: '10%', 2: '5%', 3: '2%' }
-
-    for (const ref of referrals) {
-      if (!referralEarningsByLevel[ref.level]) {
-        referralEarningsByLevel[ref.level] = { members: 0, earnings: 0 }
-      }
-      referralEarningsByLevel[ref.level].members++
-      referralEarningsByLevel[ref.level].earnings += Number(ref.totalEarnings)
-    }
-
-    const referralEarnings = [1, 2, 3].map((level) => ({
-      level,
-      members: referralEarningsByLevel[level]?.members ?? 0,
-      percentage: levelPercentages[level],
-      earnings: referralEarningsByLevel[level]?.earnings ?? 0,
-    }))
+    const directMembers = referrals.length
+    const directEarnings = referrals.reduce((sum, ref) => sum + Number(ref.totalEarnings), 0)
 
     // Referral history (last 30)
     const referralTransactions = await prisma.transaction.findMany({
@@ -105,14 +90,8 @@ export async function GET(request: NextRequest) {
       return {
         date: tx.createdAt.toISOString().split('T')[0],
         from: (meta?.fromAddress as string) || 'Unknown',
-        level: (meta?.level as number) || 1,
         amount: Number(tx.amount),
       }
-    })
-
-    // Team size
-    const teamSize = await prisma.referral.count({
-      where: { referrerId: user.id },
     })
 
     return NextResponse.json({
@@ -123,10 +102,10 @@ export async function GET(request: NextRequest) {
       daysActive,
       roiHistory,
       totalReferralIncome,
-      referralEarnings,
+      directMembers,
+      directEarnings,
       referralHistory,
       referralCode: user.profile.referralCode,
-      teamSize,
     })
   } catch (error) {
     console.error('Income API error:', error)

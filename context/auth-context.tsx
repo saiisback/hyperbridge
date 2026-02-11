@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           privyId: privyUser.id,
           email: privyUser.email?.address || null,
+          referredBy: localStorage.getItem('referralCode') || undefined,
           wallets: privyUser.linkedAccounts
             ?.filter((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')
             .map((w) => ({
@@ -96,6 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setDbUser(data.user)
         setProfile(data.profile)
         setWallets(data.wallets)
+        // Clear referral code after successful sync
+        localStorage.removeItem('referralCode')
       }
     } catch (error) {
       console.error('Failed to sync user:', error)
@@ -155,25 +158,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Update profile
   const updateProfile = React.useCallback(
     async (data: { name?: string; email?: string }) => {
-      if (!dbUser) return
+      if (!dbUser || !privyUser) return
 
-      // TODO: Add an API endpoint to update profile
-      // For now, just update local state
-      setDbUser((prev: User | null) => (prev ? { ...prev, name: data.name ?? prev.name } : null))
+      try {
+        const response = await fetch('/api/profile/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            privyId: privyUser.id,
+            ...data,
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          setDbUser(result.user)
+          setProfile(result.profile)
+        } else {
+          console.error('Failed to update profile')
+        }
+      } catch (error) {
+        console.error('Failed to update profile:', error)
+      }
     },
-    [dbUser]
+    [dbUser, privyUser]
   )
 
   // Set primary wallet
   const setPrimaryWallet = React.useCallback(
     async (walletAddress: string) => {
-      if (!dbUser) return
+      if (!dbUser || !privyUser) return
 
-      // TODO: Add an API endpoint to set primary wallet
-      // For now, just refresh data
-      await fetchUserData()
+      try {
+        const response = await fetch('/api/profile/primary-wallet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            privyId: privyUser.id,
+            walletAddress,
+          }),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          setDbUser(result.user)
+          setProfile(result.profile)
+          setWallets(result.wallets)
+        } else {
+          console.error('Failed to set primary wallet')
+        }
+      } catch (error) {
+        console.error('Failed to set primary wallet:', error)
+      }
     },
-    [dbUser, fetchUserData]
+    [dbUser, privyUser]
   )
 
   // Unlink account
@@ -247,6 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateProfile,
       setPrimaryWallet,
       refreshUser: fetchUserData,
+      setProfileData: setProfile,
     }),
     [
       user,

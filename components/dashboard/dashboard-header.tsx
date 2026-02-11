@@ -24,7 +24,6 @@ function getPageTitle(pathname: string): string {
     '/wallet': 'Wallet',
     '/income': 'Income',
     '/profile': 'Profile',
-    '/team': 'Team',
   }
   return routes[pathname] || 'Dashboard'
 }

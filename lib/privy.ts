@@ -13,7 +13,6 @@ export const privyConfig: PrivyClientConfig = {
   loginMethods: [
     'email',
     'wallet',
-    'google',
     'twitter',
     'discord',
   ],

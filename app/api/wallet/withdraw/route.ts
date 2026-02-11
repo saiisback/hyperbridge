@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { getTokenPriceInINR } from '@/lib/crypto-price'
 
 interface WithdrawRequest {
   privyId: string
   amount: string
   walletAddress: string
+  token?: string
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: WithdrawRequest = await request.json()
-    const { privyId, amount, walletAddress } = body
+    const { privyId, amount, walletAddress, token } = body
 
     if (!privyId || !amount || !walletAddress) {
       return NextResponse.json(
@@ -56,6 +58,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Fetch real-time INR conversion rate
+    const selectedToken = token || 'USDT'
+    let inrPrice: number
+    let priceFetchedAt: string
+    try {
+      const priceData = await getTokenPriceInINR(selectedToken)
+      inrPrice = priceData.inrPrice
+      priceFetchedAt = priceData.fetchedAt
+    } catch (priceError) {
+      console.error('Failed to fetch INR price:', priceError)
+      return NextResponse.json(
+        { error: 'Failed to fetch real-time INR conversion rate. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    const amountInr = parseFloat(amount) * inrPrice
+
     // Atomic transaction: create withdrawal record + deduct balance
     const result = await prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.create({
@@ -63,17 +83,20 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           type: 'withdraw',
           amount: withdrawAmount,
+          amountInr,
+          conversionRate: inrPrice,
+          token: selectedToken,
           status: 'pending',
           walletAddress,
-          metadata: { requestedAt: new Date().toISOString() },
+          metadata: { requestedAt: new Date().toISOString(), priceFetchedAt },
         },
       })
 
       await tx.profile.update({
         where: { userId: user.id },
         data: {
-          availableBalance: { decrement: withdrawAmount },
-          totalBalance: { decrement: withdrawAmount },
+          availableBalance: { decrement: amountInr },
+          totalBalance: { decrement: amountInr },
         },
       })
 

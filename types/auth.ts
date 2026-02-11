@@ -98,4 +98,5 @@ export interface AuthContextType {
   updateProfile: (data: { name?: string; email?: string }) => Promise<void>
   setPrimaryWallet: (walletAddress: string) => Promise<void>
   refreshUser: () => Promise<void>
+  setProfileData: (profile: Profile | null) => void
 }

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.transaction.aggregate({
         where: { type: 'deposit', status: 'completed' },
-        _sum: { amount: true },
+        _sum: { amountInr: true },
         _count: true,
       }),
       prisma.profile.aggregate({
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.transaction.aggregate({
         where: { type: 'withdraw', status: 'pending' },
-        _sum: { amount: true },
+        _sum: { amountInr: true },
         _count: true,
       }),
     ])
@@ -41,11 +41,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       totalUsers,
       newUsersLast30d,
-      totalDeposits: depositAgg._sum.amount?.toString() || '0',
+      totalDeposits: depositAgg._sum.amountInr?.toString() || '0',
       totalDepositCount: depositAgg._count,
       totalBalance: balanceAgg._sum.totalBalance?.toString() || '0',
       pendingWithdrawalCount: pendingWithdrawals._count,
-      pendingWithdrawalSum: pendingWithdrawals._sum.amount?.toString() || '0',
+      pendingWithdrawalSum: pendingWithdrawals._sum.amountInr?.toString() || '0',
     })
   } catch (error) {
     console.error('Admin stats error:', error)

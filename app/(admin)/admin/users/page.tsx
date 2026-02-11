@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
+import { formatINR } from '@/lib/utils'
 
 interface AdminUser {
   id: string
@@ -131,7 +132,7 @@ export default function AdminUsersPage() {
                         {u.primaryWallet ? truncateAddress(u.primaryWallet) : '-'}
                       </TableCell>
                       <TableCell className="text-orange-500">
-                        {parseFloat(u.totalBalance).toFixed(4)} ETH
+                        ₹{formatINR(parseFloat(u.totalBalance))}
                       </TableCell>
                       <TableCell className="text-white/70">{u.transactionCount}</TableCell>
                       <TableCell>

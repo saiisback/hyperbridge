@@ -22,11 +22,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
+import { formatINR } from '@/lib/utils'
 
 interface Transaction {
   id: string
   type: string
   amount: string
+  amountInr: string | null
+  conversionRate: string | null
+  token: string | null
   status: string
   txHash: string | null
   walletAddress: string | null
@@ -142,7 +146,7 @@ export default function AdminTransactionsPage() {
                         className={tx.type === 'deposit' ? 'text-green-500' : 'text-red-500'}
                       >
                         {tx.type === 'deposit' ? '+' : '-'}
-                        {parseFloat(tx.amount).toFixed(6)} ETH
+                        ₹{formatINR(parseFloat(tx.amountInr || tx.amount))}
                       </TableCell>
                       <TableCell>
                         <Badge

@@ -11,6 +11,7 @@ interface SyncRequest {
   privyId: string
   email: string | null
   wallets: WalletData[]
+  referredBy?: string
 }
 
 function generateReferralCode(): string {
@@ -25,7 +26,7 @@ function generateReferralCode(): string {
 export async function POST(request: NextRequest) {
   try {
     const body: SyncRequest = await request.json()
-    const { privyId, email, wallets } = body
+    const { privyId, email, wallets, referredBy } = body
 
     if (!privyId) {
       return NextResponse.json({ error: 'Privy ID is required' }, { status: 400 })
@@ -39,6 +40,18 @@ export async function POST(request: NextRequest) {
     if (!user) {
       // Create new user with profile in a transaction
       const primaryWallet = wallets[0]?.address || null
+
+      // Look up referrer if a referral code was provided
+      let referrerUser: { id: string } | null = null
+      if (referredBy) {
+        const referrerProfile = await prisma.profile.findUnique({
+          where: { referralCode: referredBy },
+          select: { userId: true },
+        })
+        if (referrerProfile) {
+          referrerUser = { id: referrerProfile.userId }
+        }
+      }
 
       const result = await prisma.$transaction(async (tx) => {
         const newUser = await tx.user.create({
@@ -56,11 +69,24 @@ export async function POST(request: NextRequest) {
           data: {
             userId: newUser.id,
             referralCode: generateReferralCode(),
+            referredBy: referredBy || null,
             totalBalance: 0,
             availableBalance: 0,
             totalInvested: 0,
           },
         })
+
+        // Create referral record linking referrer to this new user
+        if (referrerUser) {
+          await tx.referral.create({
+            data: {
+              referrerId: referrerUser.id,
+              refereeId: newUser.id,
+              level: 1,
+              totalEarnings: 0,
+            },
+          })
+        }
 
         return newUser
       })

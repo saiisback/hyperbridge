@@ -7,7 +7,6 @@ import {
   Wallet,
   TrendingUp,
   User,
-  Users,
   LogOut,
   ChevronUp,
   Shield,
@@ -57,11 +56,6 @@ const navigationItems = [
     title: 'Profile',
     url: '/profile',
     icon: User,
-  },
-  {
-    title: 'Team',
-    url: '/team',
-    icon: Users,
   },
 ]
 

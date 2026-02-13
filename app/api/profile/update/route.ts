@@ -1,20 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyAuth } from '@/lib/auth'
+import { z } from 'zod'
 
-interface UpdateProfileRequest {
-  privyId: string
-  name?: string
-  email?: string
-}
+const updateProfileSchema = z.object({
+  name: z.string().max(100, 'Name must be 100 characters or less').optional(),
+  email: z.string().email('Invalid email format').optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
-    const body: UpdateProfileRequest = await request.json()
-    const { privyId, name, email } = body
-
+    const { privyId } = await verifyAuth(request)
     if (!privyId) {
-      return NextResponse.json({ error: 'Privy ID is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const body = await request.json()
+    const parsed = updateProfileSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.errors[0]?.message || 'Invalid input' },
+        { status: 400 }
+      )
+    }
+
+    const { name, email } = parsed.data
 
     const user = await prisma.user.findUnique({
       where: { privyId },

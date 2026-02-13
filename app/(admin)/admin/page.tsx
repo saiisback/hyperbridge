@@ -45,7 +45,7 @@ interface RecentTransaction {
 }
 
 export default function AdminOverviewPage() {
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const [stats, setStats] = useState<Stats | null>(null)
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([])
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([])
@@ -57,10 +57,12 @@ export default function AdminOverviewPage() {
     async function fetchData() {
       setIsLoading(true)
       try {
+        const accessToken = await getAccessToken()
+        if (!accessToken) return
         const [statsRes, usersRes, txRes] = await Promise.all([
-          adminFetch('/api/admin/stats', user.privyId!),
-          adminFetch('/api/admin/users?limit=5', user.privyId!),
-          adminFetch('/api/admin/transactions?limit=5', user.privyId!),
+          adminFetch('/api/admin/stats', accessToken),
+          adminFetch('/api/admin/users?limit=5', accessToken),
+          adminFetch('/api/admin/transactions?limit=5', accessToken),
         ])
 
         if (statsRes.ok) setStats(await statsRes.json())
@@ -80,7 +82,7 @@ export default function AdminOverviewPage() {
     }
 
     fetchData()
-  }, [user.privyId])
+  }, [user.privyId, getAccessToken])
 
   if (isLoading) {
     return (

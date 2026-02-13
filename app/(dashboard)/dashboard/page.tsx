@@ -8,6 +8,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { useWallet } from '@/hooks/use-wallet'
 import { useAuth } from '@/context/auth-context'
 import { cn, formatINR } from '@/lib/utils'
+import { authFetch } from '@/lib/api'
 
 interface DashboardStats {
   totalBalance: number
@@ -38,7 +39,7 @@ const balanceConfig = {
 
 export default function DashboardPage() {
   const { address } = useWallet()
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -47,7 +48,9 @@ export default function DashboardPage() {
 
     const fetchStats = async () => {
       try {
-        const res = await fetch(`/api/dashboard/stats?privyId=${user.privyId}`)
+        const accessToken = await getAccessToken()
+        if (!accessToken) return
+        const res = await authFetch('/api/dashboard/stats', accessToken)
         if (res.ok) {
           const data = await res.json()
           setStats(data)
@@ -60,7 +63,7 @@ export default function DashboardPage() {
     }
 
     fetchStats()
-  }, [user.privyId])
+  }, [user.privyId, getAccessToken])
 
   if (loading) {
     return (

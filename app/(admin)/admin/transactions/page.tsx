@@ -39,7 +39,7 @@ interface Transaction {
 }
 
 export default function AdminTransactionsPage() {
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -52,11 +52,13 @@ export default function AdminTransactionsPage() {
     if (!user.privyId) return
     setIsLoading(true)
     try {
+      const accessToken = await getAccessToken()
+      if (!accessToken) return
       const params = new URLSearchParams({ page: page.toString(), limit: '20' })
       if (typeFilter !== 'all') params.set('type', typeFilter)
       if (statusFilter !== 'all') params.set('status', statusFilter)
 
-      const res = await adminFetch(`/api/admin/transactions?${params}`, user.privyId)
+      const res = await adminFetch(`/api/admin/transactions?${params}`, accessToken)
       if (res.ok) {
         const data = await res.json()
         setTransactions(data.transactions)
@@ -68,7 +70,7 @@ export default function AdminTransactionsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [user.privyId, page, typeFilter, statusFilter])
+  }, [user.privyId, page, typeFilter, statusFilter, getAccessToken])
 
   useEffect(() => {
     fetchTransactions()

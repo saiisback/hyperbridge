@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyAuth } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const privyId = request.nextUrl.searchParams.get('privyId')
+    const { privyId } = await verifyAuth(request)
     if (!privyId) {
-      return NextResponse.json({ error: 'privyId is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const user = await prisma.user.findUnique({
@@ -20,16 +21,16 @@ export async function GET(request: NextRequest) {
     // Get total ROI income
     const roiAgg = await prisma.transaction.aggregate({
       where: { userId: user.id, type: 'roi', status: 'completed' },
-      _sum: { amount: true },
+      _sum: { amountInr: true },
     })
-    const totalRoiIncome = Number(roiAgg._sum.amount ?? 0)
+    const totalRoiIncome = Number(roiAgg._sum.amountInr ?? 0)
 
     // Get total referral income
     const referralAgg = await prisma.transaction.aggregate({
       where: { userId: user.id, type: 'referral', status: 'completed' },
-      _sum: { amount: true },
+      _sum: { amountInr: true },
     })
-    const totalReferralIncome = Number(referralAgg._sum.amount ?? 0)
+    const totalReferralIncome = Number(referralAgg._sum.amountInr ?? 0)
 
     // Get team size
     const teamSize = await prisma.referral.count({
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     const recentActivities = recentTransactions.map((tx) => ({
       id: tx.id,
       type: tx.type,
-      amount: Number(tx.amount),
+      amount: Number(tx.amountInr ?? tx.amount),
       status: tx.status,
       createdAt: tx.createdAt.toISOString(),
     }))
@@ -74,9 +75,9 @@ export async function GET(request: NextRequest) {
         monthlyMap[monthKey] = { roi: 0, referral: 0 }
       }
       if (tx.type === 'roi') {
-        monthlyMap[monthKey].roi += Number(tx.amount)
+        monthlyMap[monthKey].roi += Number(tx.amountInr ?? tx.amount)
       } else if (tx.type === 'referral') {
-        monthlyMap[monthKey].referral += Number(tx.amount)
+        monthlyMap[monthKey].referral += Number(tx.amountInr ?? tx.amount)
       }
     }
 
@@ -102,7 +103,7 @@ export async function GET(request: NextRequest) {
           status: 'completed',
           createdAt: { lte: endOfDate },
         },
-        _sum: { amount: true },
+        _sum: { amountInr: true },
       })
 
       // For withdrawals, they reduce balance so we need to handle sign
@@ -113,11 +114,11 @@ export async function GET(request: NextRequest) {
           type: 'withdraw',
           createdAt: { lte: endOfDate },
         },
-        _sum: { amount: true },
+        _sum: { amountInr: true },
       })
 
-      const totalIn = Number(txSum._sum.amount ?? 0)
-      const totalWithdraw = Number(withdrawSum._sum.amount ?? 0)
+      const totalIn = Number(txSum._sum.amountInr ?? 0)
+      const totalWithdraw = Number(withdrawSum._sum.amountInr ?? 0)
       // Withdrawals are stored as positive amounts but reduce balance, so subtract twice
       const balance = totalIn - 2 * totalWithdraw
 

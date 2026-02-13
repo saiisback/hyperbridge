@@ -41,7 +41,7 @@ interface Withdrawal {
 }
 
 export default function AdminWithdrawalsPage() {
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const { toast } = useToast()
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -60,13 +60,15 @@ export default function AdminWithdrawalsPage() {
     if (!user.privyId) return
     setIsLoading(true)
     try {
+      const accessToken = await getAccessToken()
+      if (!accessToken) return
       const params = new URLSearchParams({
         status: activeTab,
         page: page.toString(),
         limit: '20',
       })
 
-      const res = await adminFetch(`/api/admin/withdrawals?${params}`, user.privyId)
+      const res = await adminFetch(`/api/admin/withdrawals?${params}`, accessToken)
       if (res.ok) {
         const data = await res.json()
         setWithdrawals(data.withdrawals)
@@ -78,7 +80,7 @@ export default function AdminWithdrawalsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [user.privyId, activeTab, page])
+  }, [user.privyId, activeTab, page, getAccessToken])
 
   useEffect(() => {
     fetchWithdrawals()
@@ -92,7 +94,9 @@ export default function AdminWithdrawalsPage() {
     if (!user.privyId) return
     setIsProcessing(true)
     try {
-      const res = await adminFetch(`/api/admin/withdrawals/${id}/approve`, user.privyId, {
+      const accessToken = await getAccessToken()
+      if (!accessToken) return
+      const res = await adminFetch(`/api/admin/withdrawals/${id}/approve`, accessToken, {
         method: 'POST',
       })
       if (res.ok) {
@@ -113,7 +117,9 @@ export default function AdminWithdrawalsPage() {
     if (!user.privyId || !rejectingId) return
     setIsProcessing(true)
     try {
-      const res = await adminFetch(`/api/admin/withdrawals/${rejectingId}/reject`, user.privyId, {
+      const accessToken = await getAccessToken()
+      if (!accessToken) return
+      const res = await adminFetch(`/api/admin/withdrawals/${rejectingId}/reject`, accessToken, {
         method: 'POST',
         body: JSON.stringify({ reason: rejectReason }),
       })

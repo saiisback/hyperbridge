@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyAuth } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    // Get privyId from query params
-    const { searchParams } = new URL(request.url)
-    const privyId = searchParams.get('privyId')
-
+    const { privyId } = await verifyAuth(request)
     if (!privyId) {
-      return NextResponse.json({ error: 'Privy ID is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Find user by privyId
+    // Find user by verified privyId
     const user = await prisma.user.findUnique({
       where: { privyId },
     })

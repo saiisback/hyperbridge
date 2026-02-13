@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-interface SetPrimaryWalletRequest {
-  privyId: string
-  walletAddress: string
-}
+import { verifyAuth } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
-    const body: SetPrimaryWalletRequest = await request.json()
-    const { privyId, walletAddress } = body
-
+    const { privyId } = await verifyAuth(request)
     if (!privyId) {
-      return NextResponse.json({ error: 'Privy ID is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const body = await request.json()
+    const { walletAddress } = body
 
     if (!walletAddress) {
       return NextResponse.json({ error: 'Wallet address is required' }, { status: 400 })

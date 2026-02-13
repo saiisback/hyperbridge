@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
+import { verifyAuth } from '@/lib/auth'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
 
-interface WithdrawRequest {
-  privyId: string
-  amount: string
-  walletAddress: string
-  token?: string
-}
+// Minimum withdrawal amount in INR
+const MIN_WITHDRAWAL_INR = 100
 
 export async function POST(request: NextRequest) {
   try {
-    const body: WithdrawRequest = await request.json()
-    const { privyId, amount, walletAddress, token } = body
+    const { privyId } = await verifyAuth(request)
+    if (!privyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    if (!privyId || !amount || !walletAddress) {
+    const body = await request.json()
+    const { amount, walletAddress, token } = body
+
+    if (!amount || !walletAddress) {
       return NextResponse.json(
-        { error: 'privyId, amount, and walletAddress are required' },
+        { error: 'amount and walletAddress are required' },
         { status: 400 }
       )
     }
@@ -48,16 +50,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const availableBalance = new Prisma.Decimal(user.profile.availableBalance)
-    const withdrawAmount = new Prisma.Decimal(amount)
-
-    if (availableBalance.lessThan(withdrawAmount)) {
-      return NextResponse.json(
-        { error: 'Insufficient balance' },
-        { status: 400 }
-      )
-    }
-
     // Fetch real-time INR conversion rate
     const selectedToken = token || 'USDT'
     let inrPrice: number
@@ -74,15 +66,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const amountInr = parseFloat(amount) * inrPrice
+    const amountInr = parsedAmount * inrPrice
 
-    // Atomic transaction: create withdrawal record + deduct balance
+    // Minimum withdrawal check
+    if (amountInr < MIN_WITHDRAWAL_INR) {
+      return NextResponse.json(
+        { error: `Minimum withdrawal is ₹${MIN_WITHDRAWAL_INR}` },
+        { status: 400 }
+      )
+    }
+
+    // Atomic transaction: re-read balance inside transaction to prevent race condition
     const result = await prisma.$transaction(async (tx) => {
+      // Re-read balance inside transaction for consistency
+      const freshProfile = await tx.profile.findUniqueOrThrow({ where: { userId: user.id } })
+      const availableBalance = new Prisma.Decimal(freshProfile.availableBalance.toString())
+      const withdrawAmountInr = new Prisma.Decimal(amountInr.toString())
+
+      if (availableBalance.lessThan(withdrawAmountInr)) {
+        throw new Error('INSUFFICIENT_BALANCE')
+      }
+
       const transaction = await tx.transaction.create({
         data: {
           userId: user.id,
           type: 'withdraw',
-          amount: withdrawAmount,
+          amount: parsedAmount,
           amountInr,
           conversionRate: inrPrice,
           token: selectedToken,
@@ -115,6 +124,12 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    if (error instanceof Error && error.message === 'INSUFFICIENT_BALANCE') {
+      return NextResponse.json(
+        { error: 'Insufficient balance' },
+        { status: 400 }
+      )
+    }
     console.error('Withdrawal error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },

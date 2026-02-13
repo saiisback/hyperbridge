@@ -20,6 +20,7 @@ import { useWallet } from '@/hooks/use-wallet'
 import { useAuth } from '@/context/auth-context'
 import { useToast } from '@/hooks/use-toast'
 import { useWallets } from '@privy-io/react-auth'
+import { authFetch } from '@/lib/api'
 import { createWalletClient, createPublicClient, custom, http, parseEther, parseUnits, erc20Abi } from 'viem'
 import { sepolia } from 'viem/chains'
 import { formatINR } from '@/lib/utils'
@@ -69,7 +70,7 @@ interface Transaction {
 
 export default function WalletPage() {
   const { address } = useWallet()
-  const { user, refreshUser, setProfileData } = useAuth()
+  const { user, refreshUser, setProfileData, getAccessToken } = useAuth()
   const { wallets } = useWallets()
   const { toast } = useToast()
 
@@ -99,7 +100,9 @@ export default function WalletPage() {
 
     setIsLoadingTransactions(true)
     try {
-      const response = await fetch(`/api/wallet/transactions?privyId=${user.privyId}`)
+      const accessToken = await getAccessToken()
+      if (!accessToken) return
+      const response = await authFetch('/api/wallet/transactions', accessToken)
       if (response.ok) {
         const data = await response.json()
         setTransactions(data.transactions || [])
@@ -109,7 +112,7 @@ export default function WalletPage() {
     } finally {
       setIsLoadingTransactions(false)
     }
-  }, [user.privyId])
+  }, [user.privyId, getAccessToken])
 
   // Fetch transactions on mount
   useEffect(() => {
@@ -270,11 +273,11 @@ export default function WalletPage() {
 
       if (receipt.status === 'success') {
         // Call our API to record the deposit
-        const response = await fetch('/api/wallet/deposit', {
+        const accessToken = await getAccessToken()
+        if (!accessToken) throw new Error('Not authenticated')
+        const response = await authFetch('/api/wallet/deposit', accessToken, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            privyId: user.privyId,
             txHash: receipt.transactionHash,
             amount: depositAmount,
             walletAddress: activeWallet.address,
@@ -354,11 +357,11 @@ export default function WalletPage() {
 
     setIsWithdrawing(true)
     try {
-      const response = await fetch('/api/wallet/withdraw', {
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('Not authenticated')
+      const response = await authFetch('/api/wallet/withdraw', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          privyId: user.privyId,
           amount: withdrawAmount,
           walletAddress: withdrawAddress,
           token: selectedToken,
@@ -702,10 +705,10 @@ export default function WalletPage() {
                         </TableCell>
                         <TableCell
                           className={
-                            tx.type === 'deposit' ? 'text-green-500' : 'text-red-500'
+                            tx.type === 'withdrawal' ? 'text-red-500' : 'text-green-500'
                           }
                         >
-                          {tx.type === 'deposit' ? '+' : '-'}₹
+                          {tx.type === 'withdrawal' ? '-' : '+'}₹
                           {tx.amountInr
                             ? formatINR(parseFloat(tx.amountInr))
                             : formatINR(parseFloat(tx.amount))}

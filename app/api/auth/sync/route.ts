@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyAuth } from '@/lib/auth'
+import crypto from 'crypto'
 
 interface WalletData {
   address: string
@@ -8,29 +10,24 @@ interface WalletData {
 }
 
 interface SyncRequest {
-  privyId: string
   email: string | null
   wallets: WalletData[]
   referredBy?: string
 }
 
 function generateReferralCode(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let result = ''
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return result
+  return crypto.randomUUID().slice(0, 8).toUpperCase()
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body: SyncRequest = await request.json()
-    const { privyId, email, wallets, referredBy } = body
-
+    const { privyId } = await verifyAuth(request)
     if (!privyId) {
-      return NextResponse.json({ error: 'Privy ID is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const body: SyncRequest = await request.json()
+    const { email, wallets, referredBy } = body
 
     // Check if user exists
     let user = await prisma.user.findUnique({
@@ -53,6 +50,17 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Generate a unique referral code with retry
+      let referralCode = generateReferralCode()
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const existing = await prisma.profile.findUnique({
+          where: { referralCode },
+          select: { userId: true },
+        })
+        if (!existing) break
+        referralCode = generateReferralCode()
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         const newUser = await tx.user.create({
           data: {
@@ -68,7 +76,7 @@ export async function POST(request: NextRequest) {
         await tx.profile.create({
           data: {
             userId: newUser.id,
-            referralCode: generateReferralCode(),
+            referralCode,
             referredBy: referredBy || null,
             totalBalance: 0,
             availableBalance: 0,
@@ -76,8 +84,8 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Create referral record linking referrer to this new user
-        if (referrerUser) {
+        // Self-referral prevention: only create referral if referrer is not the new user
+        if (referrerUser && referrerUser.id !== newUser.id) {
           await tx.referral.create({
             data: {
               referrerId: referrerUser.id,

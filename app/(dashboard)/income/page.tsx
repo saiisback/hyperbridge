@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table'
 import { useAuth } from '@/context/auth-context'
 import { formatINR } from '@/lib/utils'
+import { authFetch } from '@/lib/api'
 
 interface IncomeData {
   totalRoiIncome: number
@@ -35,7 +36,7 @@ function formatAmount(value: number): string {
 }
 
 export default function IncomePage() {
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const [copied, setCopied] = useState(false)
   const [data, setData] = useState<IncomeData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -45,7 +46,9 @@ export default function IncomePage() {
 
     const fetchIncome = async () => {
       try {
-        const res = await fetch(`/api/income?privyId=${user.privyId}`)
+        const accessToken = await getAccessToken()
+        if (!accessToken) return
+        const res = await authFetch('/api/income', accessToken)
         if (res.ok) {
           setData(await res.json())
         }
@@ -57,7 +60,7 @@ export default function IncomePage() {
     }
 
     fetchIncome()
-  }, [user.privyId])
+  }, [user.privyId, getAccessToken])
 
   const referralLink = data?.referralCode
     ? `${window.location.origin}/ref/${data.referralCode}`

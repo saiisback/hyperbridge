@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { usePrivy, useLogin, useLogout } from '@privy-io/react-auth'
+import { usePrivy, useLogin, useLogout, useToken } from '@privy-io/react-auth'
 import type { LinkedAccountWithMetadata } from '@privy-io/react-auth'
 import type { User, Profile, UserWallet } from '@prisma/client'
 import type { AuthContextType, AuthUser, AuthMethod } from '@/types/auth'
+import { authFetch } from '@/lib/api'
 
 const AuthContext = React.createContext<AuthContextType | null>(null)
 
@@ -24,6 +25,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     unlinkTwitter,
     unlinkDiscord,
   } = usePrivy()
+
+  const { getAccessToken } = useToken()
 
   const { login } = useLogin({
     onComplete: (user) => {
@@ -75,11 +78,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setIsLoading(true)
     try {
-      const response = await fetch('/api/auth/sync', {
+      const accessToken = await getAccessToken()
+      if (!accessToken) return
+
+      const response = await authFetch('/api/auth/sync', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          privyId: privyUser.id,
           email: privyUser.email?.address || null,
           referredBy: localStorage.getItem('referralCode') || undefined,
           wallets: privyUser.linkedAccounts
@@ -105,7 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }, [privyUser])
+  }, [privyUser, getAccessToken])
 
   // Fetch user data from database
   const fetchUserData = React.useCallback(async () => {
@@ -116,13 +120,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setIsLoading(true)
     try {
+      const accessToken = await getAccessToken()
+      if (!accessToken) {
+        setIsLoading(false)
+        return
+      }
+
       // Use the sync endpoint to fetch/sync user data
-      const response = await fetch('/api/auth/sync', {
+      const response = await authFetch('/api/auth/sync', accessToken, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          privyId: privyUser.id,
           email: privyUser.email?.address || null,
+          referredBy: localStorage.getItem('referralCode') || undefined,
           wallets: privyUser.linkedAccounts
             ?.filter((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')
             .map((w) => ({
@@ -138,13 +147,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setDbUser(data.user)
         setProfile(data.profile)
         setWallets(data.wallets)
+        // Clear referral code after successful sync
+        localStorage.removeItem('referralCode')
       }
     } catch (error) {
       console.error('Failed to fetch user data:', error)
     } finally {
       setIsLoading(false)
     }
-  }, [privyUser])
+  }, [privyUser, getAccessToken])
 
   // Initial data fetch
   React.useEffect(() => {
@@ -161,13 +172,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!dbUser || !privyUser) return
 
       try {
-        const response = await fetch('/api/profile/update', {
+        const accessToken = await getAccessToken()
+        if (!accessToken) return
+
+        const response = await authFetch('/api/profile/update', accessToken, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            privyId: privyUser.id,
-            ...data,
-          }),
+          body: JSON.stringify(data),
         })
 
         if (response.ok) {
@@ -181,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to update profile:', error)
       }
     },
-    [dbUser, privyUser]
+    [dbUser, privyUser, getAccessToken]
   )
 
   // Set primary wallet
@@ -190,13 +200,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!dbUser || !privyUser) return
 
       try {
-        const response = await fetch('/api/profile/primary-wallet', {
+        const accessToken = await getAccessToken()
+        if (!accessToken) return
+
+        const response = await authFetch('/api/profile/primary-wallet', accessToken, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            privyId: privyUser.id,
-            walletAddress,
-          }),
+          body: JSON.stringify({ walletAddress }),
         })
 
         if (response.ok) {
@@ -211,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to set primary wallet:', error)
       }
     },
-    [dbUser, privyUser]
+    [dbUser, privyUser, getAccessToken]
   )
 
   // Unlink account
@@ -286,6 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setPrimaryWallet,
       refreshUser: fetchUserData,
       setProfileData: setProfile,
+      getAccessToken,
     }),
     [
       user,
@@ -303,6 +313,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateProfile,
       setPrimaryWallet,
       fetchUserData,
+      getAccessToken,
     ]
   )
 

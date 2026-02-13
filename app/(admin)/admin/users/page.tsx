@@ -33,7 +33,7 @@ interface AdminUser {
 }
 
 export default function AdminUsersPage() {
-  const { user } = useAuth()
+  const { user, getAccessToken } = useAuth()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -45,10 +45,12 @@ export default function AdminUsersPage() {
     if (!user.privyId) return
     setIsLoading(true)
     try {
+      const accessToken = await getAccessToken()
+      if (!accessToken) return
       const params = new URLSearchParams({ page: page.toString(), limit: '20' })
       if (search) params.set('search', search)
 
-      const res = await adminFetch(`/api/admin/users?${params}`, user.privyId)
+      const res = await adminFetch(`/api/admin/users?${params}`, accessToken)
       if (res.ok) {
         const data = await res.json()
         setUsers(data.users)
@@ -60,7 +62,7 @@ export default function AdminUsersPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [user.privyId, page, search])
+  }, [user.privyId, page, search, getAccessToken])
 
   useEffect(() => {
     fetchUsers()

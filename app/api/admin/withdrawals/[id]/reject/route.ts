@@ -48,12 +48,13 @@ export async function POST(
         },
       })
 
-      // Refund user's balance
+      // Refund user's balance (use amountInr which is what was actually deducted)
+      const refundAmount = new Prisma.Decimal((transaction.amountInr || transaction.amount).toString())
       await tx.profile.update({
         where: { userId: transaction.userId },
         data: {
-          availableBalance: { increment: new Prisma.Decimal(transaction.amount.toString()) },
-          totalBalance: { increment: new Prisma.Decimal(transaction.amount.toString()) },
+          availableBalance: { increment: refundAmount },
+          totalBalance: { increment: refundAmount },
         },
       })
     })

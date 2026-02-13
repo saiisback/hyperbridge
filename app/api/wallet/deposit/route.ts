@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyAuth } from '@/lib/auth'
 import { createPublicClient, http, formatEther, formatUnits, decodeEventLog, erc20Abi } from 'viem'
 import { sepolia } from 'viem/chains'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
@@ -18,15 +19,12 @@ const ERC20_TOKENS: Record<string, { address: string; decimals: number }> = {
 const ALLOWED_TOKENS = ['ETH', 'USDT']
 
 // Create a public client for Sepolia to verify transactions
-// Using viem's default Sepolia transport (multi-RPC fallback) instead of
-// the unreliable https://rpc.sepolia.org single endpoint
 const publicClient = createPublicClient({
   chain: sepolia,
   transport: http(),
 })
 
 interface DepositRequest {
-  privyId: string
   txHash: string
   amount: string
   walletAddress: string
@@ -35,13 +33,15 @@ interface DepositRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    const { privyId } = await verifyAuth(request)
+    if (!privyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body: DepositRequest = await request.json()
-    const { privyId, txHash, amount, walletAddress, token } = body
+    const { txHash, amount, walletAddress, token } = body
 
     // Validate required fields
-    if (!privyId) {
-      return NextResponse.json({ error: 'Privy ID is required' }, { status: 400 })
-    }
     if (!txHash) {
       return NextResponse.json({ error: 'Transaction hash is required' }, { status: 400 })
     }
@@ -49,10 +49,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Amount is required' }, { status: 400 })
     }
     if (!token || !ALLOWED_TOKENS.includes(token)) {
-      return NextResponse.json({ error: 'Invalid token. Must be ETH, USDT, or BTC' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid token. Must be ETH or USDT' }, { status: 400 })
     }
 
-    // Find user by privyId
+    // Find user by verified privyId
     const user = await prisma.user.findUnique({
       where: { privyId },
       include: { profile: true },
@@ -94,8 +94,6 @@ export async function POST(request: NextRequest) {
 
     // Verify transaction on Sepolia
     try {
-      // Use getTransactionReceipt instead of waitForTransactionReceipt
-      // since the frontend already confirmed the tx is mined before calling this API
       let txReceipt = await publicClient.getTransactionReceipt({
         hash: txHash as `0x${string}`,
       })
@@ -121,6 +119,20 @@ export async function POST(request: NextRequest) {
       const tx = await publicClient.getTransaction({
         hash: txHash as `0x${string}`,
       })
+
+      // Phase 3: Verify tx.from matches one of the authenticated user's wallet addresses
+      const userWallets = await prisma.userWallet.findMany({ where: { userId: user.id } })
+      const userAddresses = userWallets.map(w => w.walletAddress.toLowerCase())
+      if (!userAddresses.includes(tx.from.toLowerCase())) {
+        await prisma.transaction.update({
+          where: { id: transaction.id },
+          data: { status: 'failed' },
+        })
+        return NextResponse.json(
+          { error: 'Transaction sender does not match your registered wallets' },
+          { status: 400 }
+        )
+      }
 
       let actualAmount: string | null = null
 

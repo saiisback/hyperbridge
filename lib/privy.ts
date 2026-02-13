@@ -19,8 +19,9 @@ export const privyConfig: PrivyClientConfig = {
 
   // Embedded wallets - create wallet for email-only users
   embeddedWallets: {
-    createOnLogin: 'users-without-wallets',
-    requireUserPasswordOnCreate: false,
+    ethereum: {
+      createOnLogin: 'users-without-wallets',
+    },
   },
 
   // Wallet connect config

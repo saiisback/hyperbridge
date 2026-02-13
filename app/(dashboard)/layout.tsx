@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
@@ -12,23 +12,16 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [mounted, setMounted] = useState(false)
   const { isAuthenticated, isLoading, isReady } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    // Redirect to login if not authenticated (only after mount and ready)
-    if (mounted && isReady && !isLoading && !isAuthenticated) {
+    if (isReady && !isLoading && !isAuthenticated) {
       router.push('/login')
     }
-  }, [mounted, isReady, isLoading, isAuthenticated, router])
+  }, [isReady, isLoading, isAuthenticated, router])
 
-  // Show loading state during hydration or auth loading
-  if (!mounted || !isReady || isLoading) {
+  if (!isReady || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="flex flex-col items-center gap-4">
@@ -39,7 +32,6 @@ export default function DashboardLayout({
     )
   }
 
-  // Don't render dashboard if not authenticated
   if (!isAuthenticated) {
     return null
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AdminSidebar } from '@/components/admin/admin-sidebar'
@@ -12,25 +12,20 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  const [mounted, setMounted] = useState(false)
   const { user, isAuthenticated, isLoading, isReady } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (mounted && isReady && !isLoading) {
+    if (isReady && !isLoading) {
       if (!isAuthenticated) {
         router.push('/login')
       } else if (user.role !== 'admin') {
         router.push('/dashboard')
       }
     }
-  }, [mounted, isReady, isLoading, isAuthenticated, user.role, router])
+  }, [isReady, isLoading, isAuthenticated, user.role, router])
 
-  if (!mounted || !isReady || isLoading) {
+  if (!isReady || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black">
         <div className="flex flex-col items-center gap-4">

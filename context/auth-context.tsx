@@ -111,60 +111,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [privyUser, getAccessToken])
 
-  // Fetch user data from database
-  const fetchUserData = React.useCallback(async () => {
-    if (!privyUser?.id) {
-      setIsLoading(false)
-      return
-    }
+  // Initial data fetch — reuses syncUserToDatabase to avoid duplicate logic
+  const fetchUserData = syncUserToDatabase
 
-    setIsLoading(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) {
-        setIsLoading(false)
-        return
-      }
-
-      // Use the sync endpoint to fetch/sync user data
-      const response = await authFetch('/api/auth/sync', accessToken, {
-        method: 'POST',
-        body: JSON.stringify({
-          email: privyUser.email?.address || null,
-          referredBy: localStorage.getItem('referralCode') || undefined,
-          wallets: privyUser.linkedAccounts
-            ?.filter((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')
-            .map((w) => ({
-              address: w.address,
-              chainType: w.chainType || 'ethereum',
-              walletClient: w.walletClientType || null,
-            })) || [],
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setDbUser(data.user)
-        setProfile(data.profile)
-        setWallets(data.wallets)
-        // Clear referral code after successful sync
-        localStorage.removeItem('referralCode')
-      }
-    } catch (error) {
-      console.error('Failed to fetch user data:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [privyUser, getAccessToken])
-
-  // Initial data fetch
   React.useEffect(() => {
     if (ready && authenticated && privyUser) {
-      fetchUserData()
+      syncUserToDatabase()
     } else if (ready && !authenticated) {
       setIsLoading(false)
     }
-  }, [ready, authenticated, privyUser, fetchUserData])
+    // Only re-run when auth readiness/status changes, not on every privyUser reference change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, authenticated])
 
   // Update profile
   const updateProfile = React.useCallback(

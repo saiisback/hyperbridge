@@ -12,7 +12,6 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: 'Winfinitty',
   description: 'Web3 Investment Platform',
-  generator: 'v0.app',
   icons: {
     icon: [
       {

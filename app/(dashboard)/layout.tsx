@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
@@ -14,9 +14,17 @@ export default function DashboardLayout({
 }) {
   const { isAuthenticated, isLoading, isReady } = useAuth()
   const router = useRouter()
+  const wasAuthenticated = useRef(false)
+
+  // Track if user was ever authenticated to prevent redirect on brief flickers
+  if (isAuthenticated) {
+    wasAuthenticated.current = true
+  }
 
   useEffect(() => {
-    if (isReady && !isLoading && !isAuthenticated) {
+    // Only redirect if Privy is fully ready, not loading, not authenticated,
+    // AND the user was never authenticated in this session (prevents flicker redirects)
+    if (isReady && !isLoading && !isAuthenticated && !wasAuthenticated.current) {
       router.push('/login')
     }
   }, [isReady, isLoading, isAuthenticated, router])

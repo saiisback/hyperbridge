@@ -29,29 +29,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const { getAccessToken } = useToken()
 
-  const { login } = useLogin({
-    onComplete: (user) => {
-      console.log('Login complete:', user.user.id)
-      syncUserToDatabase()
-    },
-    onError: (error) => {
-      console.error('Login error:', error)
-    },
-  })
-
-  const { logout } = useLogout({
-    onSuccess: () => {
-      setDbUser(null)
-      setProfile(null)
-      setWallets([])
-    },
-  })
-
   // Database state
   const [dbUser, setDbUser] = React.useState<User | null>(null)
   const [profile, setProfile] = React.useState<Profile | null>(null)
   const [wallets, setWallets] = React.useState<UserWallet[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
+
+  // Ref to always hold the latest syncUserToDatabase, avoiding stale closures
+  const syncRef = React.useRef<() => Promise<void>>(() => Promise.resolve())
 
   // Determine auth method
   const authMethod = React.useMemo<AuthMethod | null>(() => {
@@ -110,18 +95,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [privyUser, getAccessToken])
 
+  // Keep the ref up-to-date so onComplete always calls the latest version
+  syncRef.current = syncUserToDatabase
+
+  const { login } = useLogin({
+    onComplete: () => {
+      syncRef.current()
+    },
+    onError: (error) => {
+      console.error('Login error:', error)
+    },
+  })
+
+  const { logout } = useLogout({
+    onSuccess: () => {
+      setDbUser(null)
+      setProfile(null)
+      setWallets([])
+    },
+  })
+
   // Initial data fetch — reuses syncUserToDatabase to avoid duplicate logic
   const fetchUserData = syncUserToDatabase
 
   React.useEffect(() => {
     if (ready && authenticated && privyUser) {
-      syncUserToDatabase()
+      syncRef.current()
     } else if (ready && !authenticated) {
       setIsLoading(false)
     }
-    // Only re-run when auth readiness/status changes, not on every privyUser reference change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, authenticated])
+  }, [ready, authenticated, privyUser])
 
   // Update profile
   const updateProfile = React.useCallback(

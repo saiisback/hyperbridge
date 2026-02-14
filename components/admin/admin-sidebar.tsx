@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Shield,
   LayoutDashboard,
   Users,
   ArrowLeftRight,
@@ -91,9 +90,11 @@ export function AdminSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link href="/admin">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-red-600 text-white shadow-lg shadow-red-600/25">
-                  <Shield className="size-4" />
-                </div>
+                <img
+                  src="/logo.svg"
+                  alt="Winfinitty Logo"
+                  className="size-8 object-contain"
+                />
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold text-white">Winfinitty</span>
                   <span className="text-xs text-white/50">Admin Panel</span>

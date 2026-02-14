@@ -51,6 +51,7 @@ export default function AdminWithdrawalsPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
 
   const { data: withdrawals, isLoading, page, totalPages, total, setPage, refetch } =
     useAdminData<Withdrawal>('/api/admin/withdrawals', 'withdrawals', {
@@ -64,6 +65,7 @@ export default function AdminWithdrawalsPage() {
   const handleApprove = async (id: string) => {
     if (!user.privyId) return
     setIsProcessing(true)
+    setApprovingId(id)
     try {
       const accessToken = await getAccessToken()
       if (!accessToken) return
@@ -81,6 +83,7 @@ export default function AdminWithdrawalsPage() {
       toast({ title: 'Error', description: 'Failed to approve withdrawal', variant: 'destructive' })
     } finally {
       setIsProcessing(false)
+      setApprovingId(null)
     }
   }
 
@@ -207,8 +210,17 @@ export default function AdminWithdrawalsPage() {
                                   disabled={isProcessing}
                                   className="bg-green-600 hover:bg-green-700 text-white"
                                 >
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Approve
+                                  {approvingId === w.id ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Approve
+                                    </>
+                                  )}
                                 </Button>
                                 <Button
                                   size="sm"

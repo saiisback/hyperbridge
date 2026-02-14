@@ -144,7 +144,7 @@ export default function IncomePage() {
         {/* ROI Income Tab */}
         <TabsContent value="roi" className="space-y-6">
           {/* ROI Stats */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
             <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
@@ -204,32 +204,34 @@ export default function IncomePage() {
             </CardHeader>
             <CardContent>
               {(data?.roiHistory ?? []).length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/10 hover:bg-transparent">
-                      <TableHead className="text-white/50">Date</TableHead>
-                      <TableHead className="text-white/50">Amount</TableHead>
-                      <TableHead className="text-white/50">Percentage</TableHead>
-                      <TableHead className="text-white/50">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(data?.roiHistory ?? []).map((row, index) => (
-                      <TableRow key={index} className="border-white/10 hover:bg-white/5">
-                        <TableCell className="text-white/70">{row.date}</TableCell>
-                        <TableCell className="text-green-500 font-medium">
-                          +₹{formatAmount(row.amount)}
-                        </TableCell>
-                        <TableCell className="text-white">{row.percentage}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-green-500/20 text-green-500 border-green-500/50">
-                            {row.status}
-                          </Badge>
-                        </TableCell>
+                <div className="overflow-x-auto -mx-6 px-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/10 hover:bg-transparent">
+                        <TableHead className="text-white/50">Date</TableHead>
+                        <TableHead className="text-white/50">Amount</TableHead>
+                        <TableHead className="text-white/50 hidden sm:table-cell">Percentage</TableHead>
+                        <TableHead className="text-white/50">Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {(data?.roiHistory ?? []).map((row, index) => (
+                        <TableRow key={index} className="border-white/10 hover:bg-white/5">
+                          <TableCell className="text-white/70">{row.date}</TableCell>
+                          <TableCell className="text-green-500 font-medium">
+                            +₹{formatAmount(row.amount)}
+                          </TableCell>
+                          <TableCell className="text-white hidden sm:table-cell">{row.percentage}</TableCell>
+                          <TableCell>
+                            <Badge className="bg-green-500/20 text-green-500 border-green-500/50">
+                              {row.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="py-8 text-center text-white/40">
                   No ROI history yet. Make a deposit to start earning daily ROI.
@@ -250,13 +252,13 @@ export default function IncomePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2 p-4 rounded-lg bg-white/5 border border-white/10">
-                <code className="flex-1 text-sm text-orange-500 font-mono break-all">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-4 rounded-lg bg-white/5 border border-white/10">
+                <code className="flex-1 text-xs sm:text-sm text-orange-500 font-mono break-all">
                   {referralLink}
                 </code>
                 <button
                   onClick={copyReferralLink}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors shrink-0"
                 >
                   {copied ? (
                     <>
@@ -334,42 +336,44 @@ export default function IncomePage() {
             </CardHeader>
             <CardContent>
               {(data?.referralHistory ?? []).length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-white/10 hover:bg-transparent">
-                      <TableHead className="text-white/50">Date</TableHead>
-                      <TableHead className="text-white/50">Level</TableHead>
-                      <TableHead className="text-white/50">Type</TableHead>
-                      <TableHead className="text-white/50">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(data?.referralHistory ?? []).map((row, index) => (
-                      <TableRow key={index} className="border-white/10 hover:bg-white/5">
-                        <TableCell className="text-white/70">{row.date}</TableCell>
-                        <TableCell>
-                          <Badge className={row.level === 1
-                            ? 'bg-orange-500/20 text-orange-500 border-orange-500/50'
-                            : 'bg-blue-500/20 text-blue-500 border-blue-500/50'
-                          }>
-                            L{row.level}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={row.type === 'instant'
-                            ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                            : 'bg-purple-500/20 text-purple-500 border-purple-500/50'
-                          }>
-                            {row.type === 'instant' ? 'Instant' : 'Monthly'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-green-500 font-medium">
-                          +₹{formatAmount(row.amount)}
-                        </TableCell>
+                <div className="overflow-x-auto -mx-6 px-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-white/10 hover:bg-transparent">
+                        <TableHead className="text-white/50">Date</TableHead>
+                        <TableHead className="text-white/50">Level</TableHead>
+                        <TableHead className="text-white/50 hidden sm:table-cell">Type</TableHead>
+                        <TableHead className="text-white/50">Amount</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {(data?.referralHistory ?? []).map((row, index) => (
+                        <TableRow key={index} className="border-white/10 hover:bg-white/5">
+                          <TableCell className="text-white/70">{row.date}</TableCell>
+                          <TableCell>
+                            <Badge className={row.level === 1
+                              ? 'bg-orange-500/20 text-orange-500 border-orange-500/50'
+                              : 'bg-blue-500/20 text-blue-500 border-blue-500/50'
+                            }>
+                              L{row.level}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden sm:table-cell">
+                            <Badge className={row.type === 'instant'
+                              ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                              : 'bg-purple-500/20 text-purple-500 border-purple-500/50'
+                            }>
+                              {row.type === 'instant' ? 'Instant' : 'Monthly'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-green-500 font-medium">
+                            +₹{formatAmount(row.amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="py-8 text-center text-white/40">
                   No referral earnings yet. Share your referral link to start earning.

@@ -124,34 +124,35 @@ export default function WalletPage() {
       <TokenSelector selectedToken={selectedToken} onSelectToken={setSelectedToken} />
 
       <Tabs defaultValue="deposit" className="space-y-6">
-        <TabsList className="bg-white/5 border border-white/10">
+        <TabsList className="bg-white/5 border border-white/10 w-full flex overflow-x-auto">
           <TabsTrigger
             value="deposit"
-            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white flex-1 min-w-0"
           >
-            <ArrowDownToLine className="h-4 w-4 mr-2" />
-            Deposit
+            <ArrowDownToLine className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
+            <span className="truncate">Deposit</span>
           </TabsTrigger>
           <TabsTrigger
             value="withdraw"
-            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white flex-1 min-w-0"
           >
-            <ArrowUpFromLine className="h-4 w-4 mr-2" />
-            Withdraw
+            <ArrowUpFromLine className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
+            <span className="truncate">Withdraw</span>
           </TabsTrigger>
           <TabsTrigger
             value="withdraw-principal"
-            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white flex-1 min-w-0"
           >
-            <Landmark className="h-4 w-4 mr-2" />
-            Withdraw Principal
+            <Landmark className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
+            <span className="hidden sm:inline truncate">Withdraw Principal</span>
+            <span className="sm:hidden truncate">Principal</span>
           </TabsTrigger>
           <TabsTrigger
             value="history"
-            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white flex-1 min-w-0"
           >
-            <History className="h-4 w-4 mr-2" />
-            History
+            <History className="h-4 w-4 mr-1 sm:mr-2 shrink-0" />
+            <span className="truncate">History</span>
           </TabsTrigger>
         </TabsList>
 

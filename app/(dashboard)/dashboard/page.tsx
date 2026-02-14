@@ -116,7 +116,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Welcome Section */}
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight text-white">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
           Welcome Back{' '}
           <span className="bg-gradient-to-r from-orange-500 to-orange-300 bg-clip-text text-transparent">
             {address ? `${address.slice(0, 6)}...` : 'User'}
@@ -176,25 +176,25 @@ export default function DashboardPage() {
                 {recentActivities.map((activity) => (
                   <div
                     key={activity.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                    className="flex items-center justify-between gap-2 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div
                         className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-full',
+                          'flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full shrink-0',
                           activity.type === 'withdraw'
                             ? 'bg-red-500/20 text-red-500'
                             : 'bg-green-500/20 text-green-500'
                         )}
                       >
                         {activity.type === 'withdraw' ? (
-                          <ArrowDownRight className="h-5 w-5" />
+                          <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5" />
                         ) : (
-                          <ArrowUpRight className="h-5 w-5" />
+                          <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5" />
                         )}
                       </div>
-                      <div>
-                        <p className="font-medium text-white text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-white text-sm truncate">
                           {formatActivityDescription(activity.type)}
                         </p>
                         <p className="text-xs text-white/50">{timeAgo(activity.createdAt)}</p>
@@ -202,7 +202,7 @@ export default function DashboardPage() {
                     </div>
                     <div
                       className={cn(
-                        'font-semibold text-sm',
+                        'font-semibold text-sm shrink-0',
                         activity.type === 'withdraw'
                           ? 'text-red-500'
                           : 'text-green-500'

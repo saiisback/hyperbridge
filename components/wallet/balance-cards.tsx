@@ -18,7 +18,7 @@ interface BalanceCardsProps {
 
 export function BalanceCards({ formattedBalance, balanceInfo }: BalanceCardsProps) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <Card className="bg-gradient-to-br from-orange-500/20 to-orange-600/10 backdrop-blur-sm border-orange-500/30 rounded-xl">
         <CardContent className="pt-5 pb-5">
           <div className="flex items-center justify-between mb-2">

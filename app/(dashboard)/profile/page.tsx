@@ -115,22 +115,22 @@ export default function ProfilePage() {
       {/* Profile Header */}
       <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
         <CardContent className="pt-6">
-          <div className="flex items-center gap-6">
-            <Avatar className="h-24 w-24 border-2 border-orange-500/50">
-              <AvatarFallback className="bg-orange-500/20 text-orange-500 text-2xl font-bold">
+          <div className="flex flex-col sm:flex-row items-center sm:items-center gap-4 sm:gap-6">
+            <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-2 border-orange-500/50">
+              <AvatarFallback className="bg-orange-500/20 text-orange-500 text-xl sm:text-2xl font-bold">
                 {user.name?.slice(0, 2).toUpperCase() ||
                   user.primaryWallet?.slice(2, 4).toUpperCase() ||
                   'XX'}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold text-white">
+            <div className="flex-1 text-center sm:text-left">
+              <h2 className="text-xl sm:text-2xl font-bold text-white">
                 {user.name || 'Anonymous User'}
               </h2>
               {user.primaryWallet && (
-                <div className="flex items-center gap-2 mt-2">
-                  <code className="text-sm text-orange-500 font-mono">
-                    {`${user.primaryWallet.slice(0, 10)}...${user.primaryWallet.slice(-8)}`}
+                <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
+                  <code className="text-xs sm:text-sm text-orange-500 font-mono">
+                    {`${user.primaryWallet.slice(0, 6)}...${user.primaryWallet.slice(-4)}`}
                   </code>
                   <button
                     onClick={() => copyToClipboard(user.primaryWallet!, 'header')}
@@ -144,7 +144,7 @@ export default function ProfilePage() {
                   </button>
                 </div>
               )}
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center justify-center sm:justify-start gap-2 mt-3">
                 <Badge className="bg-green-500/20 text-green-500 border-green-500/50">
                   <span className="mr-1 size-1.5 rounded-full bg-green-500 animate-pulse" />
                   Connected
@@ -383,7 +383,7 @@ export default function ProfilePage() {
                       </div>
                       <div>
                         <p className="text-sm text-white">Google</p>
-                        <p className="text-xs text-white/50 truncate max-w-[120px]">
+                        <p className="text-xs text-white/50 truncate max-w-[160px] sm:max-w-[200px]">
                           {account.email}
                         </p>
                       </div>

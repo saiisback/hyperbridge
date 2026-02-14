@@ -70,61 +70,63 @@ export function TransactionHistory({ transactions, isLoading }: TransactionHisto
             No transactions yet. Make your first deposit to get started!
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-white/50">Type</TableHead>
-                <TableHead className="text-white/50">Crypto</TableHead>
-                <TableHead className="text-white/50">INR Value</TableHead>
-                <TableHead className="text-white/50">Rate</TableHead>
-                <TableHead className="text-white/50">Status</TableHead>
-                <TableHead className="text-white/50">Date</TableHead>
-                <TableHead className="text-white/50">Tx Hash</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transactions.map((tx) => (
-                <TableRow key={tx.id} className="border-white/10 hover:bg-white/5">
-                  <TableCell className="text-white font-medium capitalize">{tx.type}</TableCell>
-                  <TableCell className="text-white/70">
-                    {parseFloat(tx.amount).toFixed(6)} {getTransactionToken(tx)}
-                  </TableCell>
-                  <TableCell
-                    className={
-                      tx.type === 'withdrawal' ? 'text-red-500' : 'text-green-500'
-                    }
-                  >
-                    {tx.type === 'withdrawal' ? '-' : '+'}₹
-                    {tx.amountInr
-                      ? formatINR(parseFloat(tx.amountInr))
-                      : formatINR(parseFloat(tx.amount))}
-                  </TableCell>
-                  <TableCell className="text-white/50 text-xs">
-                    {tx.conversionRate
-                      ? `1 ${getTransactionToken(tx)} = ₹${parseFloat(tx.conversionRate).toLocaleString('en-IN')}`
-                      : '-'}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(tx.status)}</TableCell>
-                  <TableCell className="text-white/70">{formatDate(tx.date)}</TableCell>
-                  <TableCell>
-                    {tx.txHash ? (
-                      <a
-                        href={`https://etherscan.io/tx/${tx.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-orange-500 hover:text-orange-400 flex items-center gap-1"
-                      >
-                        {truncateHash(tx.txHash)}
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : (
-                      <span className="text-white/30">-</span>
-                    )}
-                  </TableCell>
+          <div className="overflow-x-auto -mx-6 px-6">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead className="text-white/50">Type</TableHead>
+                  <TableHead className="text-white/50">Crypto</TableHead>
+                  <TableHead className="text-white/50">INR Value</TableHead>
+                  <TableHead className="text-white/50 hidden sm:table-cell">Rate</TableHead>
+                  <TableHead className="text-white/50">Status</TableHead>
+                  <TableHead className="text-white/50 hidden sm:table-cell">Date</TableHead>
+                  <TableHead className="text-white/50">Tx Hash</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {transactions.map((tx) => (
+                  <TableRow key={tx.id} className="border-white/10 hover:bg-white/5">
+                    <TableCell className="text-white font-medium capitalize">{tx.type}</TableCell>
+                    <TableCell className="text-white/70">
+                      {parseFloat(tx.amount).toFixed(6)} {getTransactionToken(tx)}
+                    </TableCell>
+                    <TableCell
+                      className={
+                        tx.type === 'withdrawal' ? 'text-red-500' : 'text-green-500'
+                      }
+                    >
+                      {tx.type === 'withdrawal' ? '-' : '+'}₹
+                      {tx.amountInr
+                        ? formatINR(parseFloat(tx.amountInr))
+                        : formatINR(parseFloat(tx.amount))}
+                    </TableCell>
+                    <TableCell className="text-white/50 text-xs hidden sm:table-cell">
+                      {tx.conversionRate
+                        ? `1 ${getTransactionToken(tx)} = ₹${parseFloat(tx.conversionRate).toLocaleString('en-IN')}`
+                        : '-'}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(tx.status)}</TableCell>
+                    <TableCell className="text-white/70 hidden sm:table-cell">{formatDate(tx.date)}</TableCell>
+                    <TableCell>
+                      {tx.txHash ? (
+                        <a
+                          href={`https://etherscan.io/tx/${tx.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-orange-500 hover:text-orange-400 flex items-center gap-1"
+                        >
+                          {truncateHash(tx.txHash)}
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-white/30">-</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
     </Card>

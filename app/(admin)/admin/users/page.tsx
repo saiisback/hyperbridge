@@ -52,16 +52,16 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <CardTitle className="text-white">Users ({total})</CardTitle>
-            <form onSubmit={handleSearch} className="flex items-center gap-2">
-              <div className="relative">
+            <form onSubmit={handleSearch} className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/50" />
                 <Input
                   placeholder="Search users..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-red-500 w-64"
+                  className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-red-500 w-full"
                 />
               </div>
             </form>
@@ -76,55 +76,57 @@ export default function AdminUsersPage() {
             <p className="text-white/50 text-center py-8">No users found</p>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/10 hover:bg-transparent">
-                    <TableHead className="text-white/50">Name</TableHead>
-                    <TableHead className="text-white/50">Email</TableHead>
-                    <TableHead className="text-white/50">Wallet</TableHead>
-                    <TableHead className="text-white/50">Balance</TableHead>
-                    <TableHead className="text-white/50">Txns</TableHead>
-                    <TableHead className="text-white/50">Status</TableHead>
-                    <TableHead className="text-white/50">Joined</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((u) => (
-                    <TableRow key={u.id} className="border-white/10 hover:bg-white/5">
-                      <TableCell className="text-white font-medium">
-                        {u.name || 'Anonymous'}
-                        {u.role === 'admin' && (
-                          <Badge className="ml-2 bg-red-500/20 text-red-500 border-red-500/50 text-xs">
-                            Admin
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-white/70">{u.email || '-'}</TableCell>
-                      <TableCell className="text-white/70 font-mono">
-                        {u.primaryWallet ? truncateAddress(u.primaryWallet) : '-'}
-                      </TableCell>
-                      <TableCell className="text-orange-500">
-                        ₹{formatINR(parseFloat(u.totalBalance))}
-                      </TableCell>
-                      <TableCell className="text-white/70">{u.transactionCount}</TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            u.isActive
-                              ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                              : 'bg-red-500/20 text-red-500 border-red-500/50'
-                          }
-                        >
-                          {u.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-white/70">
-                        {new Date(u.createdAt).toLocaleDateString()}
-                      </TableCell>
+              <div className="overflow-x-auto -mx-6 px-6">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/10 hover:bg-transparent">
+                      <TableHead className="text-white/50">Name</TableHead>
+                      <TableHead className="text-white/50 hidden sm:table-cell">Email</TableHead>
+                      <TableHead className="text-white/50 hidden md:table-cell">Wallet</TableHead>
+                      <TableHead className="text-white/50">Balance</TableHead>
+                      <TableHead className="text-white/50 hidden sm:table-cell">Txns</TableHead>
+                      <TableHead className="text-white/50">Status</TableHead>
+                      <TableHead className="text-white/50 hidden md:table-cell">Joined</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((u) => (
+                      <TableRow key={u.id} className="border-white/10 hover:bg-white/5">
+                        <TableCell className="text-white font-medium">
+                          {u.name || 'Anonymous'}
+                          {u.role === 'admin' && (
+                            <Badge className="ml-2 bg-red-500/20 text-red-500 border-red-500/50 text-xs">
+                              Admin
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-white/70 hidden sm:table-cell">{u.email || '-'}</TableCell>
+                        <TableCell className="text-white/70 font-mono hidden md:table-cell">
+                          {u.primaryWallet ? truncateAddress(u.primaryWallet) : '-'}
+                        </TableCell>
+                        <TableCell className="text-orange-500">
+                          ₹{formatINR(parseFloat(u.totalBalance))}
+                        </TableCell>
+                        <TableCell className="text-white/70 hidden sm:table-cell">{u.transactionCount}</TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              u.isActive
+                                ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                : 'bg-red-500/20 text-red-500 border-red-500/50'
+                            }
+                          >
+                            {u.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-white/70 hidden md:table-cell">
+                          {new Date(u.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">

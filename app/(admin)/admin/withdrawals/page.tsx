@@ -160,85 +160,84 @@ export default function AdminWithdrawalsPage() {
                 </p>
               ) : (
                 <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-white/10 hover:bg-transparent">
-                        <TableHead className="text-white/50">User</TableHead>
-                        <TableHead className="text-white/50">Amount</TableHead>
-                        <TableHead className="text-white/50">Destination</TableHead>
-                        <TableHead className="text-white/50">Status</TableHead>
-                        <TableHead className="text-white/50">Date</TableHead>
-                        {activeTab === 'pending' && (
-                          <TableHead className="text-white/50">Actions</TableHead>
-                        )}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {withdrawals.map((w) => (
-                        <TableRow key={w.id} className="border-white/10 hover:bg-white/5">
-                          <TableCell className="text-white">
-                            {w.user.name || w.user.email || 'Unknown'}
-                          </TableCell>
-                          <TableCell className="text-red-500 font-medium">
-                            ₹{formatINR(parseFloat(w.amountInr || w.amount))}
-                          </TableCell>
-                          <TableCell className="text-white/70 font-mono">
-                            {w.walletAddress ? truncateAddress(w.walletAddress) : '-'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              className={
-                                w.status === 'completed'
-                                  ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                                  : w.status === 'pending'
-                                  ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
-                                  : 'bg-red-500/20 text-red-500 border-red-500/50'
-                              }
-                            >
-                              {w.status === 'failed' ? 'Rejected' : w.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-white/70">
-                            {new Date(w.createdAt).toLocaleString()}
-                          </TableCell>
+                  <div className="overflow-x-auto -mx-6 px-6">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-white/10 hover:bg-transparent">
+                          <TableHead className="text-white/50">User</TableHead>
+                          <TableHead className="text-white/50">Amount</TableHead>
+                          <TableHead className="text-white/50 hidden sm:table-cell">Destination</TableHead>
+                          <TableHead className="text-white/50">Status</TableHead>
+                          <TableHead className="text-white/50 hidden sm:table-cell">Date</TableHead>
                           {activeTab === 'pending' && (
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleApprove(w.id)}
-                                  disabled={isProcessing}
-                                  className="bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                  {approvingId === w.id ? (
-                                    <>
-                                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                      Processing...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <CheckCircle className="h-4 w-4 mr-1" />
-                                      Approve
-                                    </>
-                                  )}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openRejectDialog(w.id)}
-                                  disabled={isProcessing}
-                                  className="border-red-500/50 text-red-500 hover:bg-red-500/10"
-                                >
-                                  <XCircle className="h-4 w-4 mr-1" />
-                                  Reject
-                                </Button>
-                              </div>
-                            </TableCell>
+                            <TableHead className="text-white/50">Actions</TableHead>
                           )}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {withdrawals.map((w) => (
+                          <TableRow key={w.id} className="border-white/10 hover:bg-white/5">
+                            <TableCell className="text-white">
+                              {w.user.name || w.user.email || 'Unknown'}
+                            </TableCell>
+                            <TableCell className="text-red-500 font-medium">
+                              ₹{formatINR(parseFloat(w.amountInr || w.amount))}
+                            </TableCell>
+                            <TableCell className="text-white/70 font-mono hidden sm:table-cell">
+                              {w.walletAddress ? truncateAddress(w.walletAddress) : '-'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                className={
+                                  w.status === 'completed'
+                                    ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                    : w.status === 'pending'
+                                    ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+                                    : 'bg-red-500/20 text-red-500 border-red-500/50'
+                                }
+                              >
+                                {w.status === 'failed' ? 'Rejected' : w.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-white/70 hidden sm:table-cell">
+                              {new Date(w.createdAt).toLocaleString()}
+                            </TableCell>
+                            {activeTab === 'pending' && (
+                              <TableCell>
+                                <div className="flex items-center gap-1 sm:gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApprove(w.id)}
+                                    disabled={isProcessing}
+                                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-3"
+                                  >
+                                    {approvingId === w.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <CheckCircle className="h-4 w-4 sm:mr-1" />
+                                        <span className="hidden sm:inline">Approve</span>
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openRejectDialog(w.id)}
+                                    disabled={isProcessing}
+                                    className="border-red-500/50 text-red-500 hover:bg-red-500/10 px-2 sm:px-3"
+                                  >
+                                    <XCircle className="h-4 w-4 sm:mr-1" />
+                                    <span className="hidden sm:inline">Reject</span>
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
 
                   {totalPages > 1 && (
                     <div className="flex items-center justify-between mt-4">

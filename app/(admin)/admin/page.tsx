@@ -171,26 +171,28 @@ export default function AdminOverviewPage() {
             {recentUsers.length === 0 ? (
               <p className="text-white/50 text-center py-4">No users yet</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/10 hover:bg-transparent">
-                    <TableHead className="text-white/50">Name</TableHead>
-                    <TableHead className="text-white/50">Email</TableHead>
-                    <TableHead className="text-white/50">Balance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentUsers.map((u) => (
-                    <TableRow key={u.id} className="border-white/10 hover:bg-white/5">
-                      <TableCell className="text-white">{u.name || 'Anonymous'}</TableCell>
-                      <TableCell className="text-white/70">{u.email || '-'}</TableCell>
-                      <TableCell className="text-orange-500">
-                        ₹{formatINR(parseFloat(u.totalBalance))}
-                      </TableCell>
+              <div className="overflow-x-auto -mx-6 px-6">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/10 hover:bg-transparent">
+                      <TableHead className="text-white/50">Name</TableHead>
+                      <TableHead className="text-white/50 hidden sm:table-cell">Email</TableHead>
+                      <TableHead className="text-white/50">Balance</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {recentUsers.map((u) => (
+                      <TableRow key={u.id} className="border-white/10 hover:bg-white/5">
+                        <TableCell className="text-white">{u.name || 'Anonymous'}</TableCell>
+                        <TableCell className="text-white/70 hidden sm:table-cell">{u.email || '-'}</TableCell>
+                        <TableCell className="text-orange-500">
+                          ₹{formatINR(parseFloat(u.totalBalance))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -204,45 +206,47 @@ export default function AdminOverviewPage() {
             {recentTransactions.length === 0 ? (
               <p className="text-white/50 text-center py-4">No transactions yet</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-white/10 hover:bg-transparent">
-                    <TableHead className="text-white/50">User</TableHead>
-                    <TableHead className="text-white/50">Type</TableHead>
-                    <TableHead className="text-white/50">Amount</TableHead>
-                    <TableHead className="text-white/50">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {recentTransactions.map((tx) => (
-                    <TableRow key={tx.id} className="border-white/10 hover:bg-white/5">
-                      <TableCell className="text-white">
-                        {tx.user.name || tx.user.email || 'Unknown'}
-                      </TableCell>
-                      <TableCell className="text-white capitalize">{tx.type}</TableCell>
-                      <TableCell
-                        className={tx.type === 'deposit' ? 'text-green-500' : 'text-red-500'}
-                      >
-                        {tx.type === 'deposit' ? '+' : '-'}
-                        ₹{formatINR(parseFloat(tx.amountInr || tx.amount))}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            tx.status === 'completed'
-                              ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                              : tx.status === 'pending'
-                              ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
-                              : 'bg-red-500/20 text-red-500 border-red-500/50'
-                          }
-                        >
-                          {tx.status}
-                        </Badge>
-                      </TableCell>
+              <div className="overflow-x-auto -mx-6 px-6">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/10 hover:bg-transparent">
+                      <TableHead className="text-white/50">User</TableHead>
+                      <TableHead className="text-white/50 hidden sm:table-cell">Type</TableHead>
+                      <TableHead className="text-white/50">Amount</TableHead>
+                      <TableHead className="text-white/50">Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {recentTransactions.map((tx) => (
+                      <TableRow key={tx.id} className="border-white/10 hover:bg-white/5">
+                        <TableCell className="text-white">
+                          {tx.user.name || tx.user.email || 'Unknown'}
+                        </TableCell>
+                        <TableCell className="text-white capitalize hidden sm:table-cell">{tx.type}</TableCell>
+                        <TableCell
+                          className={tx.type === 'deposit' ? 'text-green-500' : 'text-red-500'}
+                        >
+                          {tx.type === 'deposit' ? '+' : '-'}
+                          ₹{formatINR(parseFloat(tx.amountInr || tx.amount))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              tx.status === 'completed'
+                                ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                                : tx.status === 'pending'
+                                ? 'bg-yellow-500/20 text-yellow-500 border-yellow-500/50'
+                                : 'bg-red-500/20 text-red-500 border-red-500/50'
+                            }
+                          >
+                            {tx.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

@@ -8,8 +8,6 @@ import { rateLimit } from '@/lib/rate-limit'
 import { getAddress } from 'viem'
 import { z } from 'zod'
 
-const MAX_WITHDRAWAL_INR = 1_000_000
-
 const withdrawSchema = z.object({
   amount: z.string().refine(
     val => { const n = parseFloat(val); return !isNaN(n) && n > 0 && isFinite(n) && !/e/i.test(val) },
@@ -48,12 +46,7 @@ export async function POST(request: NextRequest) {
     // Amount from client is in INR
     const parsedAmountInr = parseFloat(amount)
 
-    if (parsedAmountInr > MAX_WITHDRAWAL_INR) {
-      return NextResponse.json(
-        { error: `Maximum withdrawal is ₹${MAX_WITHDRAWAL_INR.toLocaleString('en-IN')}` },
-        { status: 400 }
-      )
-    }
+
 
     // Check withdrawal window
     const withdrawalWindow = await prisma.withdrawalWindow.findUnique({

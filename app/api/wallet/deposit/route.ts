@@ -5,6 +5,8 @@ import { createPublicClient, http, formatEther, formatUnits, decodeEventLog, erc
 import { sepolia } from 'viem/chains'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
 import { getDepositLockDate, LOCK_DURATION_MONTHS } from '@/lib/wallet-utils'
+import { rateLimit } from '@/lib/rate-limit'
+import { z } from 'zod'
 
 // Platform deposit address on Sepolia
 const PLATFORM_DEPOSIT_ADDRESS = '0x531dB6ca6baE892b191f7F9122beA32F228fbee1'.toLowerCase()
@@ -32,6 +34,13 @@ interface DepositRequest {
   token: string
 }
 
+const depositSchema = z.object({
+  txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/, 'Invalid transaction hash'),
+  amount: z.string().min(1, 'Amount is required'),
+  walletAddress: z.string().optional(),
+  token: z.enum(['ETH', 'USDT'], { message: 'Invalid token. Must be ETH or USDT' }),
+})
+
 export async function POST(request: NextRequest) {
   try {
     const { privyId } = await verifyAuth(request)
@@ -39,19 +48,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body: DepositRequest = await request.json()
-    const { txHash, amount, walletAddress, token } = body
+    // Rate limit: 10 deposit requests per 60 seconds per user
+    const rl = rateLimit(`deposit:${privyId}`, { limit: 10, windowSecs: 60 })
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: 'Too many deposit requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
 
-    // Validate required fields
-    if (!txHash) {
-      return NextResponse.json({ error: 'Transaction hash is required' }, { status: 400 })
+    const body = await request.json()
+    const parsed = depositSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid input' },
+        { status: 400 }
+      )
     }
-    if (!amount) {
-      return NextResponse.json({ error: 'Amount is required' }, { status: 400 })
-    }
-    if (!token || !ALLOWED_TOKENS.includes(token)) {
-      return NextResponse.json({ error: 'Invalid token. Must be ETH or USDT' }, { status: 400 })
-    }
+    const { txHash, amount, walletAddress, token } = parsed.data
 
     // Find user by verified privyId
     const user = await prisma.user.findUnique({
@@ -67,31 +81,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
     }
 
-    // Check if transaction already exists
-    const existingTx = await prisma.transaction.findFirst({
-      where: { txHash: txHash.toLowerCase() },
-    })
-
-    if (existingTx) {
-      return NextResponse.json({ error: 'Transaction already processed' }, { status: 400 })
-    }
-
-    // Create pending transaction first
-    const transaction = await prisma.transaction.create({
-      data: {
-        userId: user.id,
-        type: 'deposit',
-        amount: parseFloat(amount),
-        token,
-        status: 'pending',
-        txHash: txHash.toLowerCase(),
-        walletAddress: walletAddress?.toLowerCase() || null,
-        metadata: {
-          network: 'sepolia',
-          platformAddress: PLATFORM_DEPOSIT_ADDRESS,
+    // Create pending transaction — unique constraint on txHash prevents duplicates atomically
+    let transaction
+    try {
+      transaction = await prisma.transaction.create({
+        data: {
+          userId: user.id,
+          type: 'deposit',
+          amount: parseFloat(amount),
+          token,
+          status: 'pending',
+          txHash: txHash.toLowerCase(),
+          walletAddress: walletAddress?.toLowerCase() || null,
+          metadata: {
+            network: 'sepolia',
+            platformAddress: PLATFORM_DEPOSIT_ADDRESS,
+          },
         },
-      },
-    })
+      })
+    } catch (err: any) {
+      // P2002 = unique constraint violation (duplicate txHash)
+      if (err?.code === 'P2002' || err?.message?.includes('Unique constraint')) {
+        return NextResponse.json({ error: 'Transaction already processed' }, { status: 400 })
+      }
+      throw err
+    }
 
     // Verify transaction on Sepolia
     try {

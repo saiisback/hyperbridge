@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import crypto from 'crypto'
 
 const DAILY_ROI_RATE = 0.005 // 0.5%
+
+function verifyCronSecret(authHeader: string | null): boolean {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret || !authHeader) return false
+  const expected = `Bearer ${cronSecret}`
+  if (authHeader.length !== expected.length) return false
+  return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+}
 
 async function handleDailyRoi(request: NextRequest) {
   try {
     // Verify authorization - supports both Vercel cron and manual calls
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
 
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    if (!verifyCronSecret(authHeader)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

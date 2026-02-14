@@ -4,9 +4,22 @@ import { Prisma } from '@prisma/client'
 import { verifyAuth } from '@/lib/auth'
 import { computeWithdrawalInfo } from '@/lib/wallet-utils'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
+import { rateLimit } from '@/lib/rate-limit'
+import { getAddress } from 'viem'
+import { z } from 'zod'
 
 // Minimum withdrawal amount in INR
 const MIN_WITHDRAWAL_INR = 100
+const MAX_WITHDRAWAL_INR = 1_000_000
+
+const withdrawSchema = z.object({
+  amount: z.string().refine(
+    val => { const n = parseFloat(val); return !isNaN(n) && n > 0 && isFinite(n) && !/e/i.test(val) },
+    'Amount must be a positive number without scientific notation'
+  ),
+  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format'),
+  token: z.string().optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,21 +28,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { amount, walletAddress, token } = body
-
-    if (!amount || !walletAddress) {
+    // Rate limit: 5 withdrawal requests per 60 seconds per user
+    const rl = rateLimit(`withdraw:${privyId}`, { limit: 5, windowSecs: 60 })
+    if (!rl.success) {
       return NextResponse.json(
-        { error: 'amount and walletAddress are required' },
-        { status: 400 }
+        { error: 'Too many withdrawal requests. Please try again later.' },
+        { status: 429 }
       )
     }
 
+    const body = await request.json()
+    const parsed = withdrawSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid input' },
+        { status: 400 }
+      )
+    }
+    const { amount, walletAddress: rawWalletAddress, token } = parsed.data
+
     // Amount from client is in INR
     const parsedAmountInr = parseFloat(amount)
-    if (isNaN(parsedAmountInr) || parsedAmountInr <= 0) {
+
+    if (parsedAmountInr > MAX_WITHDRAWAL_INR) {
       return NextResponse.json(
-        { error: 'Amount must be a positive number' },
+        { error: `Maximum withdrawal is ₹${MAX_WITHDRAWAL_INR.toLocaleString('en-IN')}` },
         { status: 400 }
       )
     }
@@ -58,10 +81,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validate wallet address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+    // Validate wallet address with EIP-55 checksum
+    let walletAddress: string
+    try {
+      walletAddress = getAddress(rawWalletAddress)
+    } catch {
       return NextResponse.json(
-        { error: 'Invalid wallet address format' },
+        { error: 'Invalid wallet address. Please verify the address and try again.' },
         { status: 400 }
       )
     }
@@ -112,7 +138,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Atomic transaction: compute available withdrawal inside transaction to prevent race condition
+    // Serializable transaction: prevents concurrent withdrawals from reading stale balances
     const result = await prisma.$transaction(async (tx) => {
       const info = await computeWithdrawalInfo(tx, user.id)
       const withdrawAmountInr = new Prisma.Decimal(amountInr.toString())
@@ -158,6 +184,8 @@ export async function POST(request: NextRequest) {
       })
 
       return transaction
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
     return NextResponse.json({

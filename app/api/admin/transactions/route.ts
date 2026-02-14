@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAdmin } from '@/lib/admin'
-import { TransactionType, TransactionStatus } from '@prisma/client'
+import { z } from 'zod'
+
+const querySchema = z.object({
+  type: z.enum(['deposit', 'withdraw', 'roi', 'referral']).nullable().default(null),
+  status: z.enum(['pending', 'completed', 'failed']).nullable().default(null),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
 
 export async function GET(request: NextRequest) {
   const { authorized, error } = await verifyAdmin(request)
@@ -11,10 +18,19 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get('type') as TransactionType | null
-    const status = searchParams.get('status') as TransactionStatus | null
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
+    const parsed = querySchema.safeParse({
+      type: searchParams.get('type') || null,
+      status: searchParams.get('status') || null,
+      page: searchParams.get('page') ?? undefined,
+      limit: searchParams.get('limit') ?? undefined,
+    })
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters' },
+        { status: 400 }
+      )
+    }
+    const { type, status, page, limit } = parsed.data
     const skip = (page - 1) * limit
 
     const where: Record<string, unknown> = {}

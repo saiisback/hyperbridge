@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAdmin } from '@/lib/admin'
+import { z } from 'zod'
+
+const querySchema = z.object({
+  search: z.string().max(100).default(''),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
 
 export async function GET(request: NextRequest) {
   const { authorized, error } = await verifyAdmin(request)
@@ -10,9 +17,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url)
-    const search = searchParams.get('search') || ''
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
+    const parsed = querySchema.safeParse({
+      search: searchParams.get('search') ?? undefined,
+      page: searchParams.get('page') ?? undefined,
+      limit: searchParams.get('limit') ?? undefined,
+    })
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid query parameters' },
+        { status: 400 }
+      )
+    }
+    const { search, page, limit } = parsed.data
     const skip = (page - 1) * limit
 
     const where = search

@@ -2,21 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/auth'
 import crypto from 'crypto'
+import { z } from 'zod'
 
-interface WalletData {
-  address: string
-  chainType: string
-  walletClient: string | null
-}
-
-interface SyncRequest {
-  email: string | null
-  wallets: WalletData[]
-  referredBy?: string
-}
+const syncSchema = z.object({
+  email: z.string().email().nullable().optional(),
+  wallets: z.array(z.object({
+    address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address'),
+    chainType: z.string(),
+    walletClient: z.string().nullable(),
+  })).default([]),
+  referredBy: z.string().regex(/^[A-Z0-9]{8}$/).optional().or(z.literal('')),
+})
 
 function generateReferralCode(): string {
-  return crypto.randomUUID().slice(0, 8).toUpperCase()
+  return crypto.randomBytes(6).toString('hex').toUpperCase().slice(0, 8)
 }
 
 export async function POST(request: NextRequest) {
@@ -26,8 +25,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body: SyncRequest = await request.json()
-    const { email, wallets, referredBy } = body
+    const body = await request.json()
+    const parsed = syncSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message || 'Invalid input' },
+        { status: 400 }
+      )
+    }
+    const { email, wallets, referredBy } = parsed.data
 
     // Check if user exists
     let user = await prisma.user.findUnique({

@@ -5,6 +5,7 @@ const LOCK_DURATION_MONTHS = 4
 /**
  * Compute withdrawal info for a user, including ROI balance,
  * locked/unlocked principal, and available withdrawal amount.
+ * Must be called within a Serializable transaction to prevent race conditions.
  */
 export async function computeWithdrawalInfo(
   tx: Prisma.TransactionClient,
@@ -12,7 +13,7 @@ export async function computeWithdrawalInfo(
 ) {
   const now = new Date()
 
-  // Read profile
+  // Read profile — caller must use Serializable isolation to prevent concurrent reads
   const profile = await tx.profile.findUniqueOrThrow({
     where: { userId },
   })

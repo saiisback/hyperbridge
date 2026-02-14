@@ -12,6 +12,7 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { sepolia } from 'viem/chains'
+import { rateLimit } from '@/lib/rate-limit'
 
 // Platform wallet (same address used for deposits)
 const rawKey = process.env.PLATFORM_PRIVATE_KEY || ''
@@ -30,8 +31,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { authorized, error, user: adminUser } = await verifyAdmin(request)
-  if (!authorized) {
+  if (!authorized || !adminUser) {
     return NextResponse.json({ error }, { status: 403 })
+  }
+
+  // Rate limit: 10 approvals per 60 seconds per admin
+  const rl = rateLimit(`approve:${adminUser.id}`, { limit: 10, windowSecs: 60 })
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    )
   }
 
   if (!PLATFORM_PRIVATE_KEY) {
@@ -63,6 +73,22 @@ export async function POST(
 
     if (!transaction.walletAddress) {
       return NextResponse.json({ error: 'No destination wallet address on this transaction' }, { status: 400 })
+    }
+
+    // Atomically claim this transaction to prevent concurrent approvals.
+    // updateMany with status filter ensures only one request succeeds.
+    const claimed = await prisma.transaction.updateMany({
+      where: { id, status: 'pending' },
+      data: {
+        metadata: {
+          ...(transaction.metadata as object),
+          claimedBy: adminUser.id,
+          claimedAt: new Date().toISOString(),
+        },
+      },
+    })
+    if (claimed.count === 0) {
+      return NextResponse.json({ error: 'Transaction is no longer pending' }, { status: 409 })
     }
 
     const token = transaction.token || 'USDT'
@@ -131,7 +157,7 @@ export async function POST(
               txHash,
               metadata: {
                 ...(transaction.metadata as object),
-                approvedBy: adminUser!.id,
+                approvedBy: adminUser.id,
                 approvedAt: new Date().toISOString(),
                 transferFailed: true,
                 failureReason: 'On-chain transaction reverted',
@@ -164,7 +190,7 @@ export async function POST(
           txHash,
           metadata: {
             ...(transaction.metadata as object),
-            approvedBy: adminUser!.id,
+            approvedBy: adminUser.id,
             approvedAt: new Date().toISOString(),
             transferConfirmedAt: new Date().toISOString(),
           },
@@ -194,7 +220,7 @@ export async function POST(
             status: 'failed',
             metadata: {
               ...(transaction.metadata as object),
-              approvedBy: adminUser!.id,
+              approvedBy: adminUser.id,
               approvedAt: new Date().toISOString(),
               transferFailed: true,
               failureReason: transferError instanceof Error ? transferError.message : 'Unknown transfer error',

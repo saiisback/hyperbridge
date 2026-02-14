@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import crypto from 'crypto'
 
 const L1_RATE = 0.03 // 3% monthly on referee's totalInvested
 const L2_RATE = 0.01 // 1% monthly on referee's totalInvested
 
+function verifyCronSecret(authHeader: string | null): boolean {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret || !authHeader) return false
+  const expected = `Bearer ${cronSecret}`
+  if (authHeader.length !== expected.length) return false
+  return crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))
+}
+
 async function handleMonthlyReferral(request: NextRequest) {
   try {
     const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
 
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    if (!verifyCronSecret(authHeader)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -3,6 +3,11 @@ import { prisma } from '@/lib/prisma'
 import { verifyAdmin } from '@/lib/admin'
 import { Prisma } from '@prisma/client'
 import { rateLimit } from '@/lib/rate-limit'
+import { z } from 'zod'
+
+const withdrawMetaSchema = z.object({
+  roiDeduction: z.number().min(0).optional(),
+}).passthrough()
 
 export async function POST(
   request: NextRequest,
@@ -63,8 +68,8 @@ export async function POST(
 
       // Refund user's balance (use amountInr which is what was actually deducted)
       const refundAmount = new Prisma.Decimal((transaction.amountInr || transaction.amount).toString())
-      const meta = transaction.metadata as Record<string, unknown> | null
-      const roiDeduction = Number(meta?.roiDeduction ?? 0)
+      const parsedMeta = withdrawMetaSchema.safeParse(transaction.metadata)
+      const roiDeduction = parsedMeta.success ? (parsedMeta.data.roiDeduction ?? 0) : 0
 
       await tx.profile.update({
         where: { userId: transaction.userId },

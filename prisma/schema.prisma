@@ -92,6 +92,7 @@ model Transaction {
   status         TransactionStatus @default(pending)
   txHash         String?           @unique @map("tx_hash")
   walletAddress  String?           @map("wallet_address")
+  dedupKey       String?           @unique @map("dedup_key")
   metadata       Json              @default("{}")
   createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
 

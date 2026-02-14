@@ -289,6 +289,7 @@ export async function POST(request: NextRequest) {
                 amountInr: l1Commission,
                 token: 'INR',
                 status: 'completed',
+                dedupKey: `ref:${l1Referral.referrerId}:${user.id}:instant`,
                 metadata: {
                   fromUserId: user.id,
                   fromAddress: walletAddress || 'Unknown',
@@ -333,6 +334,7 @@ export async function POST(request: NextRequest) {
                 amountInr: l2Commission,
                 token: 'INR',
                 status: 'completed',
+                dedupKey: `ref:${l2Referral.referrerId}:${user.id}:instant`,
                 metadata: {
                   fromUserId: user.id,
                   fromAddress: walletAddress || 'Unknown',

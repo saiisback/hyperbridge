@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/auth'
+import { z } from 'zod'
+
+const referralMetaSchema = z.object({
+  fromAddress: z.string().optional(),
+  level: z.number().int().min(1).max(2).optional(),
+  type: z.string().optional(),
+}).passthrough()
 
 export async function GET(request: NextRequest) {
   try {
@@ -93,13 +100,14 @@ export async function GET(request: NextRequest) {
     })
 
     const referralHistory = referralTransactions.map((tx) => {
-      const meta = tx.metadata as Record<string, unknown> | null
+      const parsedMeta = referralMetaSchema.safeParse(tx.metadata)
+      const meta = parsedMeta.success ? parsedMeta.data : null
       return {
         date: tx.createdAt.toISOString().split('T')[0],
-        from: (meta?.fromAddress as string) || 'Unknown',
+        from: meta?.fromAddress || 'Unknown',
         amount: Number(tx.amount),
-        level: (meta?.level as number) || 1,
-        type: (meta?.type as string) || 'instant',
+        level: meta?.level ?? 1,
+        type: meta?.type || 'instant',
       }
     })
 

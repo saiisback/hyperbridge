@@ -63,22 +63,10 @@ async function handleMonthlyReferral(request: NextRequest) {
           if (commission <= 0) continue
 
           // Check if already paid this month for this referrer-referee pair
-          const existingPayout = await prisma.transaction.findFirst({
-            where: {
-              userId: referral.referrerId,
-              type: 'referral',
-              status: 'completed',
-              metadata: {
-                path: ['fromUserId'],
-                equals: refereeId,
-              },
-              AND: {
-                metadata: {
-                  path: ['monthKey'],
-                  equals: monthKey,
-                },
-              },
-            },
+          const dedupKey = `ref:${referral.referrerId}:${refereeId}:${monthKey}`
+          const existingPayout = await prisma.transaction.findUnique({
+            where: { dedupKey },
+            select: { id: true },
           })
 
           if (existingPayout) {
@@ -95,6 +83,7 @@ async function handleMonthlyReferral(request: NextRequest) {
                 amountInr: commission,
                 token: 'INR',
                 status: 'completed',
+                dedupKey,
                 metadata: {
                   fromUserId: refereeId,
                   level: referral.level,

@@ -13,6 +13,12 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 import { sepolia } from 'viem/chains'
 import { rateLimit } from '@/lib/rate-limit'
+import { z } from 'zod'
+
+const withdrawMetaSchema = z.object({
+  netAmount: z.number().positive().optional(),
+  roiDeduction: z.number().min(0).optional(),
+}).passthrough()
 
 // Platform wallet (same address used for deposits)
 const rawKey = process.env.PLATFORM_PRIVATE_KEY || ''
@@ -94,7 +100,8 @@ export async function POST(
     const token = transaction.token || 'USDT'
     const destinationAddress = transaction.walletAddress as `0x${string}`
     // Send only the net amount (after 10% admin fee) to the user
-    const meta = transaction.metadata as Record<string, unknown> | null
+    const parsedMeta = withdrawMetaSchema.safeParse(transaction.metadata)
+    const meta = parsedMeta.success ? parsedMeta.data : null
     const amount = meta?.netAmount
       ? String(meta.netAmount)
       : (Number(transaction.amount) * 0.9).toFixed(6)
@@ -146,8 +153,8 @@ export async function POST(
 
       if (receipt.status !== 'success') {
         // On-chain transfer failed — mark as failed and refund user
-        const meta = transaction.metadata as Record<string, unknown> | null
-        const roiDeduction = Number(meta?.roiDeduction ?? 0)
+        const failMeta = withdrawMetaSchema.safeParse(transaction.metadata)
+        const roiDeduction = failMeta.success ? (failMeta.data.roiDeduction ?? 0) : 0
 
         await prisma.$transaction(async (tx) => {
           await tx.transaction.update({
@@ -210,8 +217,8 @@ export async function POST(
       console.error('On-chain transfer error:', transferError)
 
       // Transfer could not be sent — refund user's balance
-      const meta2 = transaction.metadata as Record<string, unknown> | null
-      const roiDeduction2 = Number(meta2?.roiDeduction ?? 0)
+      const errMeta = withdrawMetaSchema.safeParse(transaction.metadata)
+      const roiDeduction2 = errMeta.success ? (errMeta.data.roiDeduction ?? 0) : 0
 
       await prisma.$transaction(async (tx) => {
         await tx.transaction.update({

@@ -30,7 +30,7 @@ export default function HomePage() {
               </radialGradient>
               <radialGradient id="neonPulse2" cx="50%" cy="50%" r="50%">
                 <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
-                <stop offset="25%" stopColor="rgba(251,146,60,0.9)" />
+                <stop offset="25%" stopColor="rgba(154, 139, 127, 0.9)" />
                 <stop offset="60%" stopColor="rgba(234,88,12,0.7)" />
                 <stop offset="100%" stopColor="rgba(234,88,12,0)" />
               </radialGradient>

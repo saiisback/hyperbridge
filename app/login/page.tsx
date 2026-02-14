@@ -45,7 +45,7 @@ export default function LoginPage() {
             <Wallet className="h-10 w-10 text-orange-500" />
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-white">
-            Hyper<span className="text-orange-500">Bridge</span>
+            Win<span className="text-orange-500">finitty</span>
           </h1>
           <p className="mt-3 text-white/60">
             Sign in to access your dashboard

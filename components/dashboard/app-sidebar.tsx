@@ -92,7 +92,7 @@ export function AppSidebar() {
                   <Wallet className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-semibold text-white">HyperBridge</span>
+                  <span className="font-semibold text-white">Winfinitty</span>
                   <span className="text-xs text-white/50">Dashboard</span>
                 </div>
               </Link>

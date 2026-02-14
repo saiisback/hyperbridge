@@ -45,7 +45,7 @@ export function DashboardHeader() {
               href="/dashboard"
               className="text-white/50 hover:text-white transition-colors"
             >
-              HyperBridge
+              Winfinitty
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator className="hidden md:block text-white/30" />

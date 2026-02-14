@@ -9,18 +9,16 @@ export const privyConfig: PrivyClientConfig = {
     showWalletLoginFirst: true,
   },
 
-  // Login methods - enable all the ones you want
+  // Login methods
   loginMethods: [
-    'email',
+    'google',
     'wallet',
-    'twitter',
-    'discord',
   ],
 
   // Embedded wallets - create wallet for email-only users
   embeddedWallets: {
     ethereum: {
-      createOnLogin: 'users-without-wallets',
+      createOnLogin: 'off',
     },
   },
 

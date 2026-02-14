@@ -210,7 +210,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Build auth user object
   const user = React.useMemo<AuthUser>(() => {
-    const email = privyUser?.email?.address || dbUser?.email || null
+    const googleEmail = privyUser?.linkedAccounts?.find(
+      (a): a is LinkedAccountWithMetadata & { type: 'google_oauth' } => a.type === 'google_oauth'
+    )?.email || null
+    const email = privyUser?.email?.address || googleEmail || dbUser?.email || null
     const primaryWallet =
       dbUser?.primaryWallet ||
       privyUser?.linkedAccounts?.find((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')?.address ||

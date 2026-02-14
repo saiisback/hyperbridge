@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Wallet, Mail, Chrome } from 'lucide-react'
+import { Wallet, Chrome } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 
 export default function LoginPage() {
@@ -82,16 +82,6 @@ export default function LoginPage() {
           {/* Sign-in method indicators */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20">
-                <Mail className="h-5 w-5 text-blue-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">Email</p>
-                <p className="text-xs text-white/50">Password login</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/20">
                 <Wallet className="h-5 w-5 text-orange-400" />
               </div>
@@ -107,18 +97,6 @@ export default function LoginPage() {
               </div>
               <div>
                 <p className="text-sm font-medium text-white">Google</p>
-                <p className="text-xs text-white/50">Social login</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1DA1F2]/20">
-                <svg className="h-5 w-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">Twitter</p>
                 <p className="text-xs text-white/50">Social login</p>
               </div>
             </div>

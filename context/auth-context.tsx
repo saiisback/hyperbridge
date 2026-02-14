@@ -69,7 +69,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await authFetch('/api/auth/sync', accessToken, {
         method: 'POST',
         body: JSON.stringify({
-          email: privyUser.email?.address || null,
+          email: privyUser.email?.address ||
+            privyUser.linkedAccounts?.find((a) => a.type === 'google_oauth')?.email ||
+            null,
           referredBy: localStorage.getItem('referralCode') || undefined,
           wallets: privyUser.linkedAccounts
             ?.filter((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')

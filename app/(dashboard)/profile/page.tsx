@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { ShimmerButton } from '@/components/shimmer-button'
 import { useAuth } from '@/context/auth-context'
+import { useToast } from '@/hooks/use-toast'
 import { getWalletClientName, formatProfileDate } from '@/lib/utils'
 import type { LinkedAccountWithMetadata } from '@privy-io/react-auth'
 
@@ -32,12 +33,12 @@ export default function ProfilePage() {
     linkEmail,
     linkWallet,
     linkGoogle,
-    linkTwitter,
     unlinkAccount,
     updateProfile,
     setPrimaryWallet,
   } = useAuth()
 
+  const { toast } = useToast()
   const [displayName, setDisplayName] = useState(user.name || '')
   const [copied, setCopied] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -48,7 +49,10 @@ export default function ProfilePage() {
   const emailAccounts = linkedAccounts.filter((a) => a.type === 'email')
   const walletAccounts = linkedAccounts.filter((a) => a.type === 'wallet')
   const googleAccounts = linkedAccounts.filter((a) => a.type === 'google_oauth')
-  const twitterAccounts = linkedAccounts.filter((a) => a.type === 'twitter_oauth')
+
+  // Use Google email as fallback when no explicit email is linked
+  const googleEmail = googleAccounts.length > 0 ? googleAccounts[0].email : null
+  const displayEmail = emailAccounts.length > 0 ? null : googleEmail
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text)
@@ -66,6 +70,16 @@ export default function ProfilePage() {
   }
 
   const handleUnlink = async (account: LinkedAccountWithMetadata) => {
+    const linkedAccounts = user.privyUser?.linkedAccounts || []
+    if (linkedAccounts.length <= 1) {
+      toast({
+        title: 'Cannot unlink account',
+        description: 'You must have at least one linked account to keep your profile accessible.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     const accountId = account.type === 'wallet' ? account.address :
                      account.type === 'email' ? account.address :
                      account.type === 'google_oauth' ? account.email :
@@ -73,6 +87,12 @@ export default function ProfilePage() {
     setUnlinking(accountId)
     try {
       await unlinkAccount(account)
+    } catch {
+      toast({
+        title: 'Failed to unlink account',
+        description: 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      })
     } finally {
       setUnlinking(null)
     }
@@ -234,6 +254,22 @@ export default function ProfilePage() {
                   </div>
                 ))}
               </div>
+            ) : displayEmail ? (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20">
+                    <Mail className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-white">{displayEmail}</p>
+                    <p className="text-xs text-white/50">Via Google</p>
+                  </div>
+                </div>
+                <Badge className="bg-green-500/20 text-green-500 border-green-500/50">
+                  <Check className="h-3 w-3 mr-1" />
+                  Verified
+                </Badge>
+              </div>
             ) : (
               <p className="text-sm text-white/40 p-3 rounded-lg bg-white/5 border border-dashed border-white/10">
                 No email linked. Add an email for account recovery.
@@ -334,8 +370,7 @@ export default function ProfilePage() {
           {/* Social Accounts Section */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-white/70">Social Accounts</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Google */}
+            <div className="space-y-2">
               {googleAccounts.length > 0 ? (
                 googleAccounts.map((account) => (
                   <div
@@ -377,49 +412,6 @@ export default function ProfilePage() {
                 </button>
               )}
 
-              {/* Twitter */}
-              {twitterAccounts.length > 0 ? (
-                twitterAccounts.map((account) => (
-                  <div
-                    key={account.username}
-                    className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1DA1F2]/20">
-                        <svg className="h-5 w-5 text-[#1DA1F2]" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-sm text-white">Twitter</p>
-                        <p className="text-xs text-white/50">@{account.username}</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleUnlink(account as LinkedAccountWithMetadata)}
-                      disabled={unlinking === account.username}
-                      className="text-xs text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10"
-                    >
-                      <Unlink className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <button
-                  onClick={() => linkTwitter()}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-dashed border-white/10 hover:border-white/20 transition-colors"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1DA1F2]/10">
-                    <svg className="h-5 w-5 text-[#1DA1F2]/50" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                    </svg>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm text-white/70">Link Twitter</p>
-                    <p className="text-xs text-white/40">Connect your account</p>
-                  </div>
-                </button>
-              )}
             </div>
           </div>
         </CardContent>

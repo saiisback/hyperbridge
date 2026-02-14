@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { usePrivy, useLogin, useLogout, useToken } from '@privy-io/react-auth'
 import type { LinkedAccountWithMetadata } from '@privy-io/react-auth'
 import type { User, Profile, UserWallet } from '@prisma/client'
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   } = usePrivy()
 
   const { getAccessToken } = useToken()
+  const router = useRouter()
 
   // Database state
   const [dbUser, setDbUser] = React.useState<User | null>(null)
@@ -114,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setDbUser(null)
       setProfile(null)
       setWallets([])
+      router.push('/')
     },
   })
 

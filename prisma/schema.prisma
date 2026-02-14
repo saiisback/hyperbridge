@@ -90,13 +90,17 @@ model Transaction {
   conversionRate Decimal?          @map("conversion_rate") @db.Decimal(18, 8)
   token          String?
   status         TransactionStatus @default(pending)
-  txHash         String?           @map("tx_hash")
+  txHash         String?           @unique @map("tx_hash")
   walletAddress  String?           @map("wallet_address")
   metadata       Json              @default("{}")
   createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([userId, type, status])
   @@map("transactions")
 }
 

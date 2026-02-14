@@ -11,7 +11,7 @@ import {
   erc20Abi,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
-import { sepolia } from 'viem/chains'
+import { mainnet } from 'viem/chains'
 import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
@@ -20,14 +20,12 @@ const withdrawMetaSchema = z.object({
   roiDeduction: z.number().min(0).optional(),
 }).passthrough()
 
-// Platform wallet (same address used for deposits)
 const rawKey = process.env.PLATFORM_PRIVATE_KEY || ''
 const PLATFORM_PRIVATE_KEY = (rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`) as `0x${string}`
 
-// ERC-20 token addresses on Sepolia (must match deposit route)
 const ERC20_TOKENS: Record<string, { address: `0x${string}`; decimals: number }> = {
   USDT: {
-    address: '0x7169D38820dfd117C3FA1f22a697dBA58d90BA06',
+    address: (process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS || '') as `0x${string}`,
     decimals: 6,
   },
 }
@@ -110,11 +108,11 @@ export async function POST(
     const account = privateKeyToAccount(PLATFORM_PRIVATE_KEY)
     const walletClient = createWalletClient({
       account,
-      chain: sepolia,
+      chain: mainnet,
       transport: http(),
     })
     const publicClient = createPublicClient({
-      chain: sepolia,
+      chain: mainnet,
       transport: http(),
     })
 

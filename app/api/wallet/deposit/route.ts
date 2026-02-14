@@ -2,28 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/auth'
 import { createPublicClient, http, formatEther, formatUnits, decodeEventLog, erc20Abi } from 'viem'
-import { sepolia } from 'viem/chains'
+import { mainnet } from 'viem/chains'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
 import { getDepositLockDate, LOCK_DURATION_MONTHS } from '@/lib/wallet-utils'
 import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
-// Platform deposit address on Sepolia
-const PLATFORM_DEPOSIT_ADDRESS = '0x531dB6ca6baE892b191f7F9122beA32F228fbee1'.toLowerCase()
+const PLATFORM_DEPOSIT_ADDRESS = (process.env.NEXT_PUBLIC_PLATFORM_DEPOSIT_ADDRESS || '').toLowerCase()
 
-// Allowed tokens on Sepolia (only USDT enabled)
 const ERC20_TOKENS: Record<string, { address: string; decimals: number }> = {
   USDT: {
-    address: '0x7169D38820dfd117C3FA1f22a697dBA58d90BA06'.toLowerCase(),
+    address: (process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS || '').toLowerCase(),
     decimals: 6,
   },
 }
 
-const ALLOWED_TOKENS = ['ETH', 'USDT']
-
-// Create a public client for Sepolia to verify transactions
 const publicClient = createPublicClient({
-  chain: sepolia,
+  chain: mainnet,
   transport: http(),
 })
 
@@ -94,7 +89,7 @@ export async function POST(request: NextRequest) {
           txHash: txHash.toLowerCase(),
           walletAddress: walletAddress?.toLowerCase() || null,
           metadata: {
-            network: 'sepolia',
+            network: 'ethereum',
             platformAddress: PLATFORM_DEPOSIT_ADDRESS,
           },
         },
@@ -107,7 +102,7 @@ export async function POST(request: NextRequest) {
       throw err
     }
 
-    // Verify transaction on Sepolia
+    // Verify transaction on-chain
     try {
       let txReceipt = await publicClient.getTransactionReceipt({
         hash: txHash as `0x${string}`,
@@ -240,7 +235,7 @@ export async function POST(request: NextRequest) {
             amountInr,
             conversionRate: inrPrice,
             metadata: {
-              network: 'sepolia',
+              network: 'ethereum',
               platformAddress: PLATFORM_DEPOSIT_ADDRESS,
               priceFetchedAt,
               lockedUntil: getDepositLockDate().toISOString(),

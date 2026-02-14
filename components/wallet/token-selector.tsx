@@ -1,8 +1,10 @@
 'use client'
 
+const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS as `0x${string}`
+
 const TOKENS = {
   ETH: { name: 'ETH', address: null as null, decimals: 18 },
-  USDT: { name: 'USDT', address: '0x7169D38820dfd117C3FA1f22a697dBA58d90BA06' as `0x${string}`, decimals: 6 },
+  USDT: { name: 'USDT', address: USDT_ADDRESS, decimals: 6 },
 } as const
 
 export type TokenKey = keyof typeof TOKENS

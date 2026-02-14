@@ -79,20 +79,6 @@ export const privyConfig: PrivyClientConfig = {
         default: { name: 'Arbiscan', url: 'https://arbiscan.io' },
       },
     },
-    {
-      id: 11155111,
-      name: 'Sepolia',
-      network: 'sepolia',
-      nativeCurrency: { name: 'Sepolia Ether', symbol: 'SEP', decimals: 18 },
-      rpcUrls: {
-        default: { http: ['https://rpc.sepolia.org'] },
-        public: { http: ['https://rpc.sepolia.org'] },
-      },
-      blockExplorers: {
-        default: { name: 'Etherscan', url: 'https://sepolia.etherscan.io' },
-      },
-      testnet: true,
-    },
   ],
 
   // Legal

@@ -136,7 +136,7 @@ export default function AdminTransactionsPage() {
                       <TableCell>
                         {tx.txHash ? (
                           <a
-                            href={`https://sepolia.etherscan.io/tx/${tx.txHash}`}
+                            href={`https://etherscan.io/tx/${tx.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-mono text-orange-500 hover:text-orange-400 flex items-center gap-1"

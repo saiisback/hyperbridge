@@ -12,20 +12,12 @@ import { useToast } from '@/hooks/use-toast'
 import { useWallets } from '@privy-io/react-auth'
 import { authFetch } from '@/lib/api'
 import { createWalletClient, createPublicClient, custom, http, parseEther, parseUnits, erc20Abi } from 'viem'
-import { sepolia } from 'viem/chains'
+import { mainnet } from 'viem/chains'
 import type { TokenKey } from './token-selector'
 import { TOKENS } from './token-selector'
 
-const PLATFORM_DEPOSIT_ADDRESS = '0x531dB6ca6baE892b191f7F9122beA32F228fbee1'
-const SEPOLIA_CHAIN_ID = 11155111
-
-const USDT_MINT_ABI = [{
-  name: '_giveMeATokens',
-  type: 'function',
-  inputs: [{ name: 'amount', type: 'uint256' }],
-  outputs: [],
-  stateMutability: 'nonpayable',
-}] as const
+const PLATFORM_DEPOSIT_ADDRESS = process.env.NEXT_PUBLIC_PLATFORM_DEPOSIT_ADDRESS || ''
+const MAINNET_CHAIN_ID = 1
 
 interface DepositTabProps {
   selectedToken: TokenKey
@@ -41,7 +33,6 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
   const [depositAmount, setDepositAmount] = useState('')
   const [copied, setCopied] = useState(false)
   const [isDepositing, setIsDepositing] = useState(false)
-  const [isMinting, setIsMinting] = useState(false)
 
   const token = TOKENS[selectedToken]
 
@@ -49,73 +40,6 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
     navigator.clipboard.writeText(PLATFORM_DEPOSIT_ADDRESS)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleMintTestTokens = async () => {
-    if (selectedToken === 'ETH') {
-      toast({
-        title: 'Use a faucet for ETH',
-        description: 'Get Sepolia ETH from faucet.sepolia.dev or faucets.chain.link/sepolia',
-      })
-      return
-    }
-
-    if (!wallets.length) {
-      toast({
-        title: 'No wallet connected',
-        description: 'Please connect your wallet first',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const activeWallet = wallets[0]
-    setIsMinting(true)
-
-    try {
-      try {
-        await activeWallet.switchChain(SEPOLIA_CHAIN_ID)
-      } catch {
-        // may already be on Sepolia
-      }
-
-      const ethereumProvider = await activeWallet.getEthereumProvider()
-      const walletClient = createWalletClient({
-        chain: sepolia,
-        transport: custom(ethereumProvider),
-      })
-      const publicClient = createPublicClient({
-        chain: sepolia,
-        transport: http(),
-      })
-
-      const [account] = await walletClient.getAddresses()
-
-      const hash = await walletClient.writeContract({
-        account,
-        address: TOKENS.USDT.address,
-        abi: USDT_MINT_ABI,
-        functionName: '_giveMeATokens',
-        args: [BigInt(1000 * 10 ** 6)],
-      })
-
-      await publicClient.waitForTransactionReceipt({ hash })
-
-      toast({
-        title: 'Tokens minted!',
-        description: '1000 USDT has been added to your wallet',
-      })
-    } catch (error: unknown) {
-      console.error('Mint error:', error)
-      const msg = error instanceof Error ? error.message : 'Failed to mint tokens'
-      toast({
-        title: 'Mint failed',
-        description: msg,
-        variant: 'destructive',
-      })
-    } finally {
-      setIsMinting(false)
-    }
   }
 
   const handleDeposit = async () => {
@@ -142,18 +66,18 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
     setIsDepositing(true)
     try {
       try {
-        await activeWallet.switchChain(SEPOLIA_CHAIN_ID)
+        await activeWallet.switchChain(MAINNET_CHAIN_ID)
       } catch (switchError) {
-        console.log('Chain switch error (may already be on Sepolia):', switchError)
+        console.log('Chain switch error (may already be on mainnet):', switchError)
       }
 
       const ethereumProvider = await activeWallet.getEthereumProvider()
       const walletClient = createWalletClient({
-        chain: sepolia,
+        chain: mainnet,
         transport: custom(ethereumProvider),
       })
       const publicClient = createPublicClient({
-        chain: sepolia,
+        chain: mainnet,
         transport: http(),
       })
 
@@ -274,7 +198,7 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
         </div>
 
         <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-          <p className="text-sm text-white/70 mb-2">Platform Deposit Address (Sepolia)</p>
+          <p className="text-sm text-white/70 mb-2">Platform Deposit Address</p>
           <div className="flex items-center gap-2">
             <code className="flex-1 text-sm text-orange-500 font-mono break-all">
               {PLATFORM_DEPOSIT_ADDRESS}

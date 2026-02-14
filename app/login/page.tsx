@@ -42,7 +42,11 @@ export default function LoginPage() {
         {/* Logo/Brand */}
         <div className="mb-8 text-center">
           <div className="mb-4 inline-flex items-center justify-center rounded-full bg-orange-500/20 p-4 border border-orange-500/30">
-            <Wallet className="h-10 w-10 text-orange-500" />
+            <img
+              src="/logo.svg"
+              alt="Winfinitty Logo"
+              className="h-10 w-10 object-contain"
+            />
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-white">
             Win<span className="text-orange-500">finitty</span>

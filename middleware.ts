@@ -8,6 +8,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Public endpoint: withdrawal window status (no auth needed)
+  if (pathname === '/api/withdraw-window') {
+    return NextResponse.next()
+  }
+
   // Require Authorization header on all /api/* routes
   const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {

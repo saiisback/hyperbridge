@@ -91,6 +91,7 @@ async function handleDailyRoi(request: NextRequest) {
             where: { userId: profile.user.id },
             data: {
               availableBalance: { increment: roiAmount },
+              roiBalance: { increment: roiAmount },
               totalBalance: { increment: roiAmount },
             },
           }),

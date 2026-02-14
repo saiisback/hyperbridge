@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth'
 import { createPublicClient, http, formatEther, formatUnits, decodeEventLog, erc20Abi } from 'viem'
 import { sepolia } from 'viem/chains'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
+import { getDepositLockDate, LOCK_DURATION_MONTHS } from '@/lib/wallet-utils'
 
 // Platform deposit address on Sepolia
 const PLATFORM_DEPOSIT_ADDRESS = '0x531dB6ca6baE892b191f7F9122beA32F228fbee1'.toLowerCase()
@@ -211,8 +212,9 @@ export async function POST(request: NextRequest) {
       const cryptoAmount = parseFloat(actualAmount!)
       const amountInr = cryptoAmount * inrPrice
 
-      // Referral commission rate (10% for direct referrer)
-      const REFERRAL_COMMISSION_RATE = 0.10
+      // Referral commission rates
+      const L1_RATE = 0.03 // 3% for direct referrer
+      const L2_RATE = 0.01 // 1% for indirect referrer
 
       // Update transaction and profile balance
       const result = await prisma.$transaction(async (tx) => {
@@ -227,6 +229,7 @@ export async function POST(request: NextRequest) {
               network: 'sepolia',
               platformAddress: PLATFORM_DEPOSIT_ADDRESS,
               priceFetchedAt,
+              lockedUntil: getDepositLockDate().toISOString(),
             },
           },
         })
@@ -234,9 +237,6 @@ export async function POST(request: NextRequest) {
         const updatedProfile = await tx.profile.update({
           where: { userId: user.id },
           data: {
-            availableBalance: {
-              increment: amountInr,
-            },
             totalBalance: {
               increment: amountInr,
             },
@@ -246,54 +246,112 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Pay referral commission to direct referrer
-        const referral = await tx.referral.findFirst({
-          where: { refereeId: user.id, level: 1 },
+        // Only pay instant referral commission on first deposit
+        const previousDeposit = await tx.transaction.findFirst({
+          where: {
+            userId: user.id,
+            type: 'deposit',
+            status: 'completed',
+            id: { not: transaction.id },
+          },
         })
 
-        if (referral) {
-          const commission = amountInr * REFERRAL_COMMISSION_RATE
+        const isFirstDeposit = !previousDeposit
 
-          // Create referral transaction for the referrer
-          await tx.transaction.create({
-            data: {
-              userId: referral.referrerId,
-              type: 'referral',
-              amount: commission,
-              amountInr: commission,
-              token: 'INR',
-              status: 'completed',
-              metadata: {
-                fromUserId: user.id,
-                fromAddress: walletAddress || 'Unknown',
-                level: 1,
-                depositAmount: amountInr,
-                rate: `${REFERRAL_COMMISSION_RATE * 100}%`,
+        if (isFirstDeposit) {
+          // Pay L1 referral commission to direct referrer
+          const l1Referral = await tx.referral.findFirst({
+            where: { refereeId: user.id, level: 1 },
+          })
+
+          if (l1Referral) {
+            const l1Commission = amountInr * L1_RATE
+
+            await tx.transaction.create({
+              data: {
+                userId: l1Referral.referrerId,
+                type: 'referral',
+                amount: l1Commission,
+                amountInr: l1Commission,
+                token: 'INR',
+                status: 'completed',
+                metadata: {
+                  fromUserId: user.id,
+                  fromAddress: walletAddress || 'Unknown',
+                  level: 1,
+                  depositAmount: amountInr,
+                  rate: `${L1_RATE * 100}%`,
+                  type: 'instant',
+                },
               },
-            },
+            })
+
+            await tx.profile.update({
+              where: { userId: l1Referral.referrerId },
+              data: {
+                availableBalance: { increment: l1Commission },
+                roiBalance: { increment: l1Commission },
+                totalBalance: { increment: l1Commission },
+              },
+            })
+
+            await tx.referral.update({
+              where: { id: l1Referral.id },
+              data: {
+                totalEarnings: { increment: l1Commission },
+              },
+            })
+          }
+
+          // Pay L2 referral commission to indirect referrer
+          const l2Referral = await tx.referral.findFirst({
+            where: { refereeId: user.id, level: 2 },
           })
 
-          // Credit referrer's balance
-          await tx.profile.update({
-            where: { userId: referral.referrerId },
-            data: {
-              availableBalance: { increment: commission },
-              totalBalance: { increment: commission },
-            },
-          })
+          if (l2Referral) {
+            const l2Commission = amountInr * L2_RATE
 
-          // Update referral total earnings
-          await tx.referral.update({
-            where: { id: referral.id },
-            data: {
-              totalEarnings: { increment: commission },
-            },
-          })
+            await tx.transaction.create({
+              data: {
+                userId: l2Referral.referrerId,
+                type: 'referral',
+                amount: l2Commission,
+                amountInr: l2Commission,
+                token: 'INR',
+                status: 'completed',
+                metadata: {
+                  fromUserId: user.id,
+                  fromAddress: walletAddress || 'Unknown',
+                  level: 2,
+                  depositAmount: amountInr,
+                  rate: `${L2_RATE * 100}%`,
+                  type: 'instant',
+                },
+              },
+            })
+
+            await tx.profile.update({
+              where: { userId: l2Referral.referrerId },
+              data: {
+                availableBalance: { increment: l2Commission },
+                roiBalance: { increment: l2Commission },
+                totalBalance: { increment: l2Commission },
+              },
+            })
+
+            await tx.referral.update({
+              where: { id: l2Referral.id },
+              data: {
+                totalEarnings: { increment: l2Commission },
+              },
+            })
+          }
         }
 
         return { transaction: updatedTransaction, profile: updatedProfile }
       })
 
+      const lockedUntil = getDepositLockDate()
       return NextResponse.json({
         success: true,
         transaction: result.transaction,
@@ -305,7 +363,11 @@ export async function POST(request: NextRequest) {
           amountInr,
           convertedAt: priceFetchedAt,
         },
-        message: `${token} deposit confirmed — ${cryptoAmount} ${token} = ₹${amountInr.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+        lockInfo: {
+          lockedUntil: lockedUntil.toISOString(),
+          lockDurationMonths: LOCK_DURATION_MONTHS,
+        },
+        message: `${token} deposit confirmed — ${cryptoAmount} ${token} = ₹${amountInr.toLocaleString('en-IN', { minimumFractionDigits: 2 })}. Principal locked until ${lockedUntil.toLocaleDateString()}.`,
       })
     } catch (verifyError) {
       console.error('Transaction verification error:', verifyError)

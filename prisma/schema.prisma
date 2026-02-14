@@ -54,6 +54,7 @@ model Profile {
   userId           String   @unique @map("user_id") @db.Uuid
   totalBalance     Decimal  @default(0) @map("total_balance") @db.Decimal(18, 8)
   availableBalance Decimal  @default(0) @map("available_balance") @db.Decimal(18, 8)
+  roiBalance       Decimal  @default(0) @map("roi_balance") @db.Decimal(18, 8)
   totalInvested    Decimal  @default(0) @map("total_invested") @db.Decimal(18, 8)
   referralCode     String?  @unique @map("referral_code")
   referredBy       String?  @map("referred_by")
@@ -112,4 +113,13 @@ model Referral {
 
   @@unique([referrerId, refereeId])
   @@map("referrals")
+}
+
+model WithdrawalWindow {
+  id        String    @id @default("default")
+  opensAt   DateTime? @map("opens_at") @db.Timestamptz
+  closesAt  DateTime? @map("closes_at") @db.Timestamptz
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("withdrawal_windows")
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, Copy, Check, Calendar, IndianRupee, Loader2 } from 'lucide-react'
+import { TrendingUp, Copy, Check, Calendar, IndianRupee, Loader2, Users } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -27,7 +27,9 @@ interface IncomeData {
   totalReferralIncome: number
   directMembers: number
   directEarnings: number
-  referralHistory: { date: string; from: string; amount: number }[]
+  level2Members: number
+  level2Earnings: number
+  referralHistory: { date: string; from: string; amount: number; level: number; type: string }[]
   referralCode: string | null
 }
 
@@ -272,25 +274,51 @@ export default function IncomePage() {
             </CardContent>
           </Card>
 
-          {/* Direct Referral Stats */}
+          {/* Referral Stats — L1 & L2 */}
           <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
             <CardHeader>
-              <CardTitle className="text-white">Direct Referral Stats</CardTitle>
+              <CardTitle className="text-white">Referral Stats</CardTitle>
               <CardDescription className="text-white/50">
-                You earn 10% commission on every deposit from your referrals
+                Earn 3% (Level 1) and 1% (Level 2) commission — instant on first deposit, then monthly recurring
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                  <p className="text-sm text-white/50 mb-1">Referred Members</p>
-                  <p className="text-2xl font-bold text-white">{data?.directMembers ?? 0}</p>
+            <CardContent className="space-y-4">
+              {/* Level 1 */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="h-4 w-4 text-orange-500" />
+                  <p className="text-sm font-medium text-white">Level 1 — Direct Referrals (3%)</p>
                 </div>
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                  <p className="text-sm text-white/50 mb-1">Total Earnings</p>
-                  <p className="text-2xl font-bold text-green-500">
-                    ₹{formatAmount(data?.directEarnings ?? 0)}
-                  </p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <p className="text-sm text-white/50 mb-1">Members</p>
+                    <p className="text-2xl font-bold text-white">{data?.directMembers ?? 0}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <p className="text-sm text-white/50 mb-1">Earnings</p>
+                    <p className="text-2xl font-bold text-green-500">
+                      ₹{formatAmount(data?.directEarnings ?? 0)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {/* Level 2 */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="h-4 w-4 text-blue-500" />
+                  <p className="text-sm font-medium text-white">Level 2 — Indirect Referrals (1%)</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <p className="text-sm text-white/50 mb-1">Members</p>
+                    <p className="text-2xl font-bold text-white">{data?.level2Members ?? 0}</p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <p className="text-sm text-white/50 mb-1">Earnings</p>
+                    <p className="text-2xl font-bold text-green-500">
+                      ₹{formatAmount(data?.level2Earnings ?? 0)}
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -310,7 +338,8 @@ export default function IncomePage() {
                   <TableHeader>
                     <TableRow className="border-white/10 hover:bg-transparent">
                       <TableHead className="text-white/50">Date</TableHead>
-                      <TableHead className="text-white/50">From</TableHead>
+                      <TableHead className="text-white/50">Level</TableHead>
+                      <TableHead className="text-white/50">Type</TableHead>
                       <TableHead className="text-white/50">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -318,7 +347,22 @@ export default function IncomePage() {
                     {(data?.referralHistory ?? []).map((row, index) => (
                       <TableRow key={index} className="border-white/10 hover:bg-white/5">
                         <TableCell className="text-white/70">{row.date}</TableCell>
-                        <TableCell className="font-mono text-orange-500">{row.from}</TableCell>
+                        <TableCell>
+                          <Badge className={row.level === 1
+                            ? 'bg-orange-500/20 text-orange-500 border-orange-500/50'
+                            : 'bg-blue-500/20 text-blue-500 border-blue-500/50'
+                          }>
+                            L{row.level}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={row.type === 'instant'
+                            ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                            : 'bg-purple-500/20 text-purple-500 border-purple-500/50'
+                          }>
+                            {row.type === 'instant' ? 'Instant' : 'Monthly'}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-green-500 font-medium">
                           +₹{formatAmount(row.amount)}
                         </TableCell>

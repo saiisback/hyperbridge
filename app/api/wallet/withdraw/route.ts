@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { verifyAuth } from '@/lib/auth'
+import { computeWithdrawalInfo } from '@/lib/wallet-utils'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
 
 // Minimum withdrawal amount in INR
@@ -30,6 +31,30 @@ export async function POST(request: NextRequest) {
         { error: 'Amount must be a positive number' },
         { status: 400 }
       )
+    }
+
+    // Check withdrawal window
+    const withdrawalWindow = await prisma.withdrawalWindow.findUnique({
+      where: { id: 'default' },
+    })
+
+    if (withdrawalWindow?.opensAt || withdrawalWindow?.closesAt) {
+      const now = new Date()
+      let isOpen = true
+      if (withdrawalWindow.opensAt && withdrawalWindow.closesAt) {
+        isOpen = now >= withdrawalWindow.opensAt && now <= withdrawalWindow.closesAt
+      } else if (withdrawalWindow.opensAt) {
+        isOpen = now >= withdrawalWindow.opensAt
+      } else if (withdrawalWindow.closesAt) {
+        isOpen = now <= withdrawalWindow.closesAt
+      }
+
+      if (!isOpen) {
+        return NextResponse.json(
+          { error: 'Withdrawals are currently closed. Please try again during the withdrawal window.' },
+          { status: 400 }
+        )
+      }
     }
 
     // Validate wallet address format
@@ -76,16 +101,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Atomic transaction: re-read balance inside transaction to prevent race condition
+    // Atomic transaction: compute available withdrawal inside transaction to prevent race condition
     const result = await prisma.$transaction(async (tx) => {
-      // Re-read balance inside transaction for consistency
-      const freshProfile = await tx.profile.findUniqueOrThrow({ where: { userId: user.id } })
-      const availableBalance = new Prisma.Decimal(freshProfile.availableBalance.toString())
+      const info = await computeWithdrawalInfo(tx, user.id)
       const withdrawAmountInr = new Prisma.Decimal(amountInr.toString())
 
-      if (availableBalance.lessThan(withdrawAmountInr)) {
+      if (withdrawAmountInr.greaterThan(new Prisma.Decimal(info.availableWithdrawal.toString()))) {
         throw new Error('INSUFFICIENT_BALANCE')
       }
+
+      // Deduct from roiBalance first, then unlocked principal
+      const roiDeduction = Math.min(info.roiBalance, amountInr)
+      const principalDeduction = amountInr - roiDeduction
 
       const transaction = await tx.transaction.create({
         data: {
@@ -97,13 +124,19 @@ export async function POST(request: NextRequest) {
           token: selectedToken,
           status: 'pending',
           walletAddress,
-          metadata: { requestedAt: new Date().toISOString(), priceFetchedAt },
+          metadata: {
+            requestedAt: new Date().toISOString(),
+            priceFetchedAt,
+            roiDeduction,
+            principalDeduction,
+          },
         },
       })
 
       await tx.profile.update({
         where: { userId: user.id },
         data: {
+          roiBalance: { decrement: roiDeduction },
           availableBalance: { decrement: amountInr },
           totalBalance: { decrement: amountInr },
         },

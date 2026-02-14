@@ -116,6 +116,9 @@ export async function POST(
 
       if (receipt.status !== 'success') {
         // On-chain transfer failed — mark as failed and refund user
+        const meta = transaction.metadata as Record<string, unknown> | null
+        const roiDeduction = Number(meta?.roiDeduction ?? 0)
+
         await prisma.$transaction(async (tx) => {
           await tx.transaction.update({
             where: { id },
@@ -137,6 +140,7 @@ export async function POST(
             where: { userId: transaction.userId },
             data: {
               availableBalance: { increment: transaction.amountInr || transaction.amount },
+              roiBalance: { increment: roiDeduction },
               totalBalance: { increment: transaction.amountInr || transaction.amount },
             },
           })
@@ -176,6 +180,9 @@ export async function POST(
       console.error('On-chain transfer error:', transferError)
 
       // Transfer could not be sent — refund user's balance
+      const meta2 = transaction.metadata as Record<string, unknown> | null
+      const roiDeduction2 = Number(meta2?.roiDeduction ?? 0)
+
       await prisma.$transaction(async (tx) => {
         await tx.transaction.update({
           where: { id },
@@ -195,6 +202,7 @@ export async function POST(
           where: { userId: transaction.userId },
           data: {
             availableBalance: { increment: transaction.amountInr || transaction.amount },
+            roiBalance: { increment: roiDeduction2 },
             totalBalance: { increment: transaction.amountInr || transaction.amount },
           },
         })

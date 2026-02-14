@@ -71,13 +71,19 @@ export async function GET(request: NextRequest) {
     })
     const totalReferralIncome = Number(referralAgg._sum.amount ?? 0)
 
-    // Direct referral stats (level 1 only)
-    const referrals = await prisma.referral.findMany({
+    // L1 referral stats
+    const l1Referrals = await prisma.referral.findMany({
       where: { referrerId: user.id, level: 1 },
     })
+    const level1Members = l1Referrals.length
+    const level1Earnings = l1Referrals.reduce((sum, ref) => sum + Number(ref.totalEarnings), 0)
 
-    const directMembers = referrals.length
-    const directEarnings = referrals.reduce((sum, ref) => sum + Number(ref.totalEarnings), 0)
+    // L2 referral stats
+    const l2Referrals = await prisma.referral.findMany({
+      where: { referrerId: user.id, level: 2 },
+    })
+    const level2Members = l2Referrals.length
+    const level2Earnings = l2Referrals.reduce((sum, ref) => sum + Number(ref.totalEarnings), 0)
 
     // Referral history (last 30)
     const referralTransactions = await prisma.transaction.findMany({
@@ -92,6 +98,8 @@ export async function GET(request: NextRequest) {
         date: tx.createdAt.toISOString().split('T')[0],
         from: (meta?.fromAddress as string) || 'Unknown',
         amount: Number(tx.amount),
+        level: (meta?.level as number) || 1,
+        type: (meta?.type as string) || 'instant',
       }
     })
 
@@ -103,8 +111,10 @@ export async function GET(request: NextRequest) {
       daysActive,
       roiHistory,
       totalReferralIncome,
-      directMembers,
-      directEarnings,
+      directMembers: level1Members,
+      directEarnings: level1Earnings,
+      level2Members,
+      level2Earnings,
       referralHistory,
       referralCode: user.profile.referralCode,
     })

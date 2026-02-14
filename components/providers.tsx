@@ -7,11 +7,11 @@ import { privyConfig } from '@/lib/privy'
 import { AuthProvider } from '@/context/auth-context'
 import { WalletProvider } from '@/context/wallet-context'
 
-const queryClient = new QueryClient()
-
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = React.useState(() => new QueryClient())
+
   if (!privyAppId) {
     console.error('NEXT_PUBLIC_PRIVY_APP_ID is not set')
     return <>{children}</>

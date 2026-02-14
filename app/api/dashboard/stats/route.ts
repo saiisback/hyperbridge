@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/auth'
+import { computeWithdrawalInfo } from '@/lib/wallet-utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,16 +22,16 @@ export async function GET(request: NextRequest) {
     // Get total ROI income
     const roiAgg = await prisma.transaction.aggregate({
       where: { userId: user.id, type: 'roi', status: 'completed' },
-      _sum: { amountInr: true },
+      _sum: { amount: true },
     })
-    const totalRoiIncome = Number(roiAgg._sum.amountInr ?? 0)
+    const totalRoiIncome = Number(roiAgg._sum.amount ?? 0)
 
     // Get total referral income
     const referralAgg = await prisma.transaction.aggregate({
       where: { userId: user.id, type: 'referral', status: 'completed' },
-      _sum: { amountInr: true },
+      _sum: { amount: true },
     })
-    const totalReferralIncome = Number(referralAgg._sum.amountInr ?? 0)
+    const totalReferralIncome = Number(referralAgg._sum.amount ?? 0)
 
     // Get team size
     const teamSize = await prisma.referral.count({
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     const recentActivities = recentTransactions.map((tx) => ({
       id: tx.id,
       type: tx.type,
-      amount: Number(tx.amountInr ?? tx.amount),
+      amount: tx.amountInr ? Number(tx.amountInr) : Number(tx.amount),
       status: tx.status,
       createdAt: tx.createdAt.toISOString(),
     }))
@@ -75,9 +76,9 @@ export async function GET(request: NextRequest) {
         monthlyMap[monthKey] = { roi: 0, referral: 0 }
       }
       if (tx.type === 'roi') {
-        monthlyMap[monthKey].roi += Number(tx.amountInr ?? tx.amount)
+        monthlyMap[monthKey].roi += Number(tx.amount)
       } else if (tx.type === 'referral') {
-        monthlyMap[monthKey].referral += Number(tx.amountInr ?? tx.amount)
+        monthlyMap[monthKey].referral += Number(tx.amount)
       }
     }
 
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
           status: 'completed',
           createdAt: { lte: endOfDate },
         },
-        _sum: { amountInr: true },
+        _sum: { amount: true },
       })
 
       // For withdrawals, they reduce balance so we need to handle sign
@@ -114,11 +115,11 @@ export async function GET(request: NextRequest) {
           type: 'withdraw',
           createdAt: { lte: endOfDate },
         },
-        _sum: { amountInr: true },
+        _sum: { amount: true },
       })
 
-      const totalIn = Number(txSum._sum.amountInr ?? 0)
-      const totalWithdraw = Number(withdrawSum._sum.amountInr ?? 0)
+      const totalIn = Number(txSum._sum.amount ?? 0)
+      const totalWithdraw = Number(withdrawSum._sum.amount ?? 0)
       // Withdrawals are stored as positive amounts but reduce balance, so subtract twice
       const balance = totalIn - 2 * totalWithdraw
 
@@ -128,15 +129,18 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // Compute withdrawal breakdown
+    const withdrawalInfo = await computeWithdrawalInfo(prisma, user.id)
+
     // Portfolio distribution
     const totalInvested = Number(user.profile.totalInvested)
     const availableBalance = Number(user.profile.availableBalance)
 
     const portfolioData = [
-      { name: 'Active Investment', value: totalInvested, color: '#f97316' },
+      { name: 'Locked Principal', value: withdrawalInfo.lockedPrincipal, color: '#ef4444' },
+      { name: 'Unlocked Principal', value: withdrawalInfo.unlockedPrincipal, color: '#f97316' },
       { name: 'ROI Earnings', value: totalRoiIncome, color: '#22c55e' },
       { name: 'Referral Earnings', value: totalReferralIncome, color: '#3b82f6' },
-      { name: 'Available', value: availableBalance, color: '#a855f7' },
     ]
 
     return NextResponse.json({
@@ -150,6 +154,11 @@ export async function GET(request: NextRequest) {
       monthlyEarnings,
       balanceHistory,
       portfolioData,
+      // New withdrawal breakdown fields
+      roiBalance: withdrawalInfo.roiBalance,
+      lockedPrincipal: withdrawalInfo.lockedPrincipal,
+      unlockedPrincipal: withdrawalInfo.unlockedPrincipal,
+      availableWithdrawal: withdrawalInfo.availableWithdrawal,
     })
   } catch (error) {
     console.error('Dashboard stats error:', error)

@@ -4,10 +4,11 @@ import * as React from 'react'
 import { usePrivy, useLogin, useLogout, useToken } from '@privy-io/react-auth'
 import type { LinkedAccountWithMetadata } from '@privy-io/react-auth'
 import type { User, Profile, UserWallet } from '@prisma/client'
-import type { AuthContextType, AuthUser, AuthMethod } from '@/types/auth'
+import type { AuthStateContextType, AuthActionsContextType, AuthContextType, AuthUser, AuthMethod } from '@/types/auth'
 import { authFetch } from '@/lib/api'
 
-const AuthContext = React.createContext<AuthContextType | null>(null)
+const AuthStateContext = React.createContext<AuthStateContextType | null>(null)
+const AuthActionsContext = React.createContext<AuthActionsContextType | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const {
@@ -57,7 +58,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!privyUser) return null
     const linkedAccounts = privyUser.linkedAccounts || []
 
-    // Check which method was used first (usually the primary)
     const hasEmail = linkedAccounts.some((a) => a.type === 'email')
     const hasWallet = linkedAccounts.some((a) => a.type === 'wallet')
     const hasGoogle = linkedAccounts.some((a) => a.type === 'google_oauth')
@@ -101,7 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setDbUser(data.user)
         setProfile(data.profile)
         setWallets(data.wallets)
-        // Clear referral code after successful sync
         localStorage.removeItem('referralCode')
       }
     } catch (error) {
@@ -201,7 +200,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await unlinkDiscord(account.subject)
           break
       }
-      // Sync changes to database
       await syncUserToDatabase()
     },
     [unlinkEmail, unlinkWallet, unlinkGoogle, unlinkTwitter, unlinkDiscord, syncUserToDatabase]
@@ -235,12 +233,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [privyUser, dbUser, profile, wallets, authenticated, isLoading, authMethod])
 
-  const value = React.useMemo<AuthContextType>(
+  // State context value — changes when auth state changes
+  const stateValue = React.useMemo<AuthStateContextType>(
     () => ({
       user,
       isAuthenticated: authenticated,
       isLoading: isLoading || !ready,
       isReady: ready,
+    }),
+    [user, authenticated, isLoading, ready]
+  )
+
+  // Actions context value — stable functions that rarely change
+  const actionsValue = React.useMemo<AuthActionsContextType>(
+    () => ({
       login,
       logout,
       linkEmail,
@@ -256,10 +262,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       getAccessToken,
     }),
     [
-      user,
-      authenticated,
-      isLoading,
-      ready,
       login,
       logout,
       linkEmail,
@@ -275,13 +277,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ]
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthStateContext.Provider value={stateValue}>
+      <AuthActionsContext.Provider value={actionsValue}>
+        {children}
+      </AuthActionsContext.Provider>
+    </AuthStateContext.Provider>
+  )
 }
 
-export function useAuth() {
-  const context = React.useContext(AuthContext)
+export function useAuthState() {
+  const context = React.useContext(AuthStateContext)
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuthState must be used within an AuthProvider')
   }
   return context
+}
+
+export function useAuthActions() {
+  const context = React.useContext(AuthActionsContext)
+  if (!context) {
+    throw new Error('useAuthActions must be used within an AuthProvider')
+  }
+  return context
+}
+
+export function useAuth(): AuthContextType {
+  const state = useAuthState()
+  const actions = useAuthActions()
+  return { ...state, ...actions }
 }

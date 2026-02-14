@@ -94,6 +94,21 @@ export async function POST(request: NextRequest) {
               totalEarnings: 0,
             },
           })
+
+          // Create L2 referral if the referrer was also referred by someone (grandparent)
+          const grandparentReferral = await tx.referral.findFirst({
+            where: { refereeId: referrerUser.id, level: 1 },
+          })
+          if (grandparentReferral && grandparentReferral.referrerId !== newUser.id) {
+            await tx.referral.create({
+              data: {
+                referrerId: grandparentReferral.referrerId,
+                refereeId: newUser.id,
+                level: 2,
+                totalEarnings: 0,
+              },
+            })
+          }
         }
 
         return newUser

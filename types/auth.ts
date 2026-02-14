@@ -75,16 +75,15 @@ export type LinkedAccount =
   | LinkedTwitter
   | LinkedDiscord
 
-// Auth context type
-export interface AuthContextType {
+// Split context types for performance
+export interface AuthStateContextType {
   user: AuthUser
-
-  // Auth state
   isAuthenticated: boolean
   isLoading: boolean
   isReady: boolean
+}
 
-  // Actions
+export interface AuthActionsContextType {
   login: () => void
   logout: () => Promise<void>
   linkEmail: () => void
@@ -93,11 +92,12 @@ export interface AuthContextType {
   linkTwitter: () => void
   linkDiscord: () => void
   unlinkAccount: (account: LinkedAccountWithMetadata) => Promise<void>
-
-  // Profile actions
   updateProfile: (data: { name?: string; email?: string }) => Promise<void>
   setPrimaryWallet: (walletAddress: string) => Promise<void>
   refreshUser: () => Promise<void>
   setProfileData: (profile: Profile | null) => void
   getAccessToken: () => Promise<string | null>
 }
+
+// Combined context type (backward compat)
+export type AuthContextType = AuthStateContextType & AuthActionsContextType

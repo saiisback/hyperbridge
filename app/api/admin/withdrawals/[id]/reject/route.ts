@@ -50,10 +50,14 @@ export async function POST(
 
       // Refund user's balance (use amountInr which is what was actually deducted)
       const refundAmount = new Prisma.Decimal((transaction.amountInr || transaction.amount).toString())
+      const meta = transaction.metadata as Record<string, unknown> | null
+      const roiDeduction = Number(meta?.roiDeduction ?? 0)
+
       await tx.profile.update({
         where: { userId: transaction.userId },
         data: {
           availableBalance: { increment: refundAmount },
+          roiBalance: { increment: roiDeduction },
           totalBalance: { increment: refundAmount },
         },
       })

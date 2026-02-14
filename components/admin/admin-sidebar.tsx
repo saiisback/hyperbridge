@@ -8,6 +8,7 @@ import {
   Users,
   ArrowLeftRight,
   ArrowUpFromLine,
+  Clock,
   ArrowLeft,
   LogOut,
   ChevronUp,
@@ -57,6 +58,11 @@ const navigationItems = [
     title: 'Withdrawals',
     url: '/admin/withdrawals',
     icon: ArrowUpFromLine,
+  },
+  {
+    title: 'Withdraw Window',
+    url: '/admin/withdraw-window',
+    icon: Clock,
   },
 ]
 

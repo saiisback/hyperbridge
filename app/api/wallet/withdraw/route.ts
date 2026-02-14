@@ -25,8 +25,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const parsedAmount = parseFloat(amount)
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    // Amount from client is in INR
+    const parsedAmountInr = parseFloat(amount)
+    if (isNaN(parsedAmountInr) || parsedAmountInr <= 0) {
       return NextResponse.json(
         { error: 'Amount must be a positive number' },
         { status: 400 }
@@ -91,7 +92,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const amountInr = parsedAmount * inrPrice
+    // Input is already in INR
+    const amountInr = parsedAmountInr
+    // Convert INR to crypto for on-chain transfer
+    const cryptoAmount = parsedAmountInr / inrPrice
+
+    // 10% admin/platform fee (applied on INR amount)
+    const ADMIN_FEE_PERCENT = 10
+    const feeAmountInr = amountInr * (ADMIN_FEE_PERCENT / 100)
+    const netAmountInr = amountInr - feeAmountInr
+    // Net crypto amount to send on-chain (after 10% fee)
+    const netCryptoAmount = netAmountInr / inrPrice
 
     // Minimum withdrawal check
     if (amountInr < MIN_WITHDRAWAL_INR) {
@@ -118,7 +129,7 @@ export async function POST(request: NextRequest) {
         data: {
           userId: user.id,
           type: 'withdraw',
-          amount: parsedAmount,
+          amount: cryptoAmount,
           amountInr,
           conversionRate: inrPrice,
           token: selectedToken,
@@ -129,6 +140,10 @@ export async function POST(request: NextRequest) {
             priceFetchedAt,
             roiDeduction,
             principalDeduction,
+            adminFeePercent: ADMIN_FEE_PERCENT,
+            feeAmountInr,
+            netAmountInr,
+            netAmount: netCryptoAmount,
           },
         },
       })
@@ -151,6 +166,7 @@ export async function POST(request: NextRequest) {
         id: result.id,
         type: result.type,
         amount: result.amount.toString(),
+        amountInr: result.amountInr?.toString(),
         status: result.status,
         walletAddress: result.walletAddress,
         createdAt: result.createdAt,

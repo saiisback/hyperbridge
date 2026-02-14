@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState } from 'react'
 import { Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,9 +14,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/context/auth-context'
-import { adminFetch } from '@/lib/admin-api'
-import { formatINR } from '@/lib/utils'
+import { useAdminData } from '@/hooks/use-admin-data'
+import { formatINR, truncateAddress } from '@/lib/utils'
 
 interface AdminUser {
   id: string
@@ -33,49 +32,20 @@ interface AdminUser {
 }
 
 export default function AdminUsersPage() {
-  const { user, getAccessToken } = useAuth()
-  const [users, setUsers] = useState<AdminUser[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const fetchUsers = useCallback(async () => {
-    if (!user.privyId) return
-    setIsLoading(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) return
-      const params = new URLSearchParams({ page: page.toString(), limit: '20' })
-      if (search) params.set('search', search)
-
-      const res = await adminFetch(`/api/admin/users?${params}`, accessToken)
-      if (res.ok) {
-        const data = await res.json()
-        setUsers(data.users)
-        setTotalPages(data.totalPages)
-        setTotal(data.total)
-      }
-    } catch (error) {
-      console.error('Failed to fetch users:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [user.privyId, page, search, getAccessToken])
-
-  useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+  const extraParams = searchQuery ? { search: searchQuery } : undefined
+  const { data: users, isLoading, page, totalPages, total, setPage } = useAdminData<AdminUser>(
+    '/api/admin/users',
+    'users',
+    { extraParams }
+  )
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    setSearchQuery(search)
     setPage(1)
-    fetchUsers()
-  }
-
-  function truncateAddress(address: string) {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
   return (

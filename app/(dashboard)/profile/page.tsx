@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { ShimmerButton } from '@/components/shimmer-button'
 import { useAuth } from '@/context/auth-context'
+import { getWalletClientName, formatProfileDate } from '@/lib/utils'
 import type { LinkedAccountWithMetadata } from '@privy-io/react-auth'
 
 export default function ProfilePage() {
@@ -79,26 +80,6 @@ export default function ProfilePage() {
 
   const handleSetPrimary = async (walletAddress: string) => {
     await setPrimaryWallet(walletAddress)
-  }
-
-  const getWalletClientName = (client: string | undefined) => {
-    if (!client) return 'Unknown'
-    if (client.includes('metamask')) return 'MetaMask'
-    if (client.includes('walletconnect')) return 'WalletConnect'
-    if (client.includes('coinbase')) return 'Coinbase'
-    if (client.includes('rainbow')) return 'Rainbow'
-    if (client.includes('privy')) return 'Embedded Wallet'
-    return client
-  }
-
-  const formatDate = (date: string | Date | null) => {
-    if (!date) return 'N/A'
-    const dateObj = typeof date === 'string' ? new Date(date) : date
-    return dateObj.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    })
   }
 
   if (isLoading) {
@@ -461,7 +442,7 @@ export default function ProfilePage() {
               <div>
                 <p className="text-sm text-white/50">Member Since</p>
                 <p className="text-sm text-white">
-                  {formatDate(user.dbUser?.createdAt || null)}
+                  {formatProfileDate(user.dbUser?.createdAt || null)}
                 </p>
               </div>
             </div>

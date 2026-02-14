@@ -67,7 +67,11 @@ export async function POST(
 
     const token = transaction.token || 'USDT'
     const destinationAddress = transaction.walletAddress as `0x${string}`
-    const amount = transaction.amount.toString()
+    // Send only the net amount (after 10% admin fee) to the user
+    const meta = transaction.metadata as Record<string, unknown> | null
+    const amount = meta?.netAmount
+      ? String(meta.netAmount)
+      : (Number(transaction.amount) * 0.9).toFixed(6)
 
     // Set up viem clients
     const account = privateKeyToAccount(PLATFORM_PRIVATE_KEY)

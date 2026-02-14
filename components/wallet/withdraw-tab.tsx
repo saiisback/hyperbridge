@@ -195,14 +195,14 @@ export function WithdrawTab({
 
             <div className="space-y-2">
               <Label htmlFor="withdrawAmount" className="text-white/70">
-                Amount ({token.name})
+                Amount (₹ INR)
               </Label>
               <Input
                 id="withdrawAmount"
                 type="number"
-                step="0.01"
+                step="1"
                 min="0"
-                placeholder={`Enter amount in ${token.name}`}
+                placeholder="Enter amount in ₹"
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
@@ -224,9 +224,21 @@ export function WithdrawTab({
 
             <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-2">
               <div className="flex items-center justify-between text-sm">
+                <span className="text-white/50">Withdrawal Amount</span>
+                <span className="text-white">
+                  ₹{withdrawAmount ? formatINR(parseFloat(withdrawAmount)) : '0.00'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-white/50">Platform Fee (10%)</span>
+                <span className="text-red-400">
+                  -₹{withdrawAmount ? formatINR(parseFloat(withdrawAmount) * 0.1) : '0.00'}
+                </span>
+              </div>
+              <div className="border-t border-white/10 pt-2 flex items-center justify-between text-sm">
                 <span className="text-white/50">You will receive</span>
                 <span className="text-orange-500 font-semibold">
-                  {withdrawAmount ? parseFloat(withdrawAmount).toFixed(2) : '0.00'} {token.name}
+                  ₹{withdrawAmount ? formatINR(parseFloat(withdrawAmount) * 0.9) : '0.00'}
                 </span>
               </div>
             </div>

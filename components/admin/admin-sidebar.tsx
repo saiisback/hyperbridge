@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/context/auth-context'
-import { cn } from '@/lib/utils'
+import { cn, truncateAddress } from '@/lib/utils'
 
 const navigationItems = [
   {
@@ -65,10 +65,6 @@ const navigationItems = [
     icon: Clock,
   },
 ]
-
-function truncateAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
-}
 
 export function AdminSidebar() {
   const pathname = usePathname()

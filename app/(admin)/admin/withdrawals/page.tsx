@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,8 +26,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
+import { useAdminData } from '@/hooks/use-admin-data'
 import { useToast } from '@/hooks/use-toast'
-import { formatINR } from '@/lib/utils'
+import { formatINR, truncateAddress } from '@/lib/utils'
 
 interface Withdrawal {
   id: string
@@ -43,12 +44,7 @@ interface Withdrawal {
 export default function AdminWithdrawalsPage() {
   const { user, getAccessToken } = useAuth()
   const { toast } = useToast()
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('pending')
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
 
   // Reject dialog state
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
@@ -56,39 +52,14 @@ export default function AdminWithdrawalsPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
 
-  const fetchWithdrawals = useCallback(async () => {
-    if (!user.privyId) return
-    setIsLoading(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) return
-      const params = new URLSearchParams({
-        status: activeTab,
-        page: page.toString(),
-        limit: '20',
-      })
-
-      const res = await adminFetch(`/api/admin/withdrawals?${params}`, accessToken)
-      if (res.ok) {
-        const data = await res.json()
-        setWithdrawals(data.withdrawals)
-        setTotalPages(data.totalPages)
-        setTotal(data.total)
-      }
-    } catch (error) {
-      console.error('Failed to fetch withdrawals:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [user.privyId, activeTab, page, getAccessToken])
-
-  useEffect(() => {
-    fetchWithdrawals()
-  }, [fetchWithdrawals])
+  const { data: withdrawals, isLoading, page, totalPages, total, setPage, refetch } =
+    useAdminData<Withdrawal>('/api/admin/withdrawals', 'withdrawals', {
+      extraParams: { status: activeTab },
+    })
 
   useEffect(() => {
     setPage(1)
-  }, [activeTab])
+  }, [activeTab, setPage])
 
   const handleApprove = async (id: string) => {
     if (!user.privyId) return
@@ -101,7 +72,7 @@ export default function AdminWithdrawalsPage() {
       })
       if (res.ok) {
         toast({ title: 'Withdrawal approved', description: 'The withdrawal has been approved successfully.' })
-        fetchWithdrawals()
+        refetch()
       } else {
         const data = await res.json()
         toast({ title: 'Error', description: data.error, variant: 'destructive' })
@@ -128,7 +99,7 @@ export default function AdminWithdrawalsPage() {
         setRejectDialogOpen(false)
         setRejectingId(null)
         setRejectReason('')
-        fetchWithdrawals()
+        refetch()
       } else {
         const data = await res.json()
         toast({ title: 'Error', description: data.error, variant: 'destructive' })
@@ -144,10 +115,6 @@ export default function AdminWithdrawalsPage() {
     setRejectingId(id)
     setRejectReason('')
     setRejectDialogOpen(true)
-  }
-
-  function truncateAddress(address: string) {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
   return (

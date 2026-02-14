@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -20,9 +20,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/context/auth-context'
-import { adminFetch } from '@/lib/admin-api'
-import { formatINR } from '@/lib/utils'
+import { useAdminData } from '@/hooks/use-admin-data'
+import { formatINR, truncateHash } from '@/lib/utils'
 
 interface Transaction {
   id: string
@@ -39,50 +38,21 @@ interface Transaction {
 }
 
 export default function AdminTransactionsPage() {
-  const { user, getAccessToken } = useAuth()
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
 
-  const fetchTransactions = useCallback(async () => {
-    if (!user.privyId) return
-    setIsLoading(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) return
-      const params = new URLSearchParams({ page: page.toString(), limit: '20' })
-      if (typeFilter !== 'all') params.set('type', typeFilter)
-      if (statusFilter !== 'all') params.set('status', statusFilter)
+  const extraParams: Record<string, string> = {}
+  if (typeFilter !== 'all') extraParams.type = typeFilter
+  if (statusFilter !== 'all') extraParams.status = statusFilter
 
-      const res = await adminFetch(`/api/admin/transactions?${params}`, accessToken)
-      if (res.ok) {
-        const data = await res.json()
-        setTransactions(data.transactions)
-        setTotalPages(data.totalPages)
-        setTotal(data.total)
-      }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [user.privyId, page, typeFilter, statusFilter, getAccessToken])
-
-  useEffect(() => {
-    fetchTransactions()
-  }, [fetchTransactions])
+  const { data: transactions, isLoading, page, totalPages, total, setPage } =
+    useAdminData<Transaction>('/api/admin/transactions', 'transactions', {
+      extraParams: Object.keys(extraParams).length > 0 ? extraParams : undefined,
+    })
 
   useEffect(() => {
     setPage(1)
-  }, [typeFilter, statusFilter])
-
-  function truncateHash(hash: string) {
-    return `${hash.slice(0, 6)}...${hash.slice(-4)}`
-  }
+  }, [typeFilter, statusFilter, setPage])
 
   return (
     <div className="space-y-6">

@@ -1,14 +1,39 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { Wallet, TrendingUp, IndianRupee, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from 'lucide-react'
-import { Area, AreaChart, Bar, BarChart, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { useWallet } from '@/hooks/use-wallet'
 import { useAuth } from '@/context/auth-context'
-import { cn, formatINR } from '@/lib/utils'
+import { cn, formatINR, timeAgo, formatActivityDescription } from '@/lib/utils'
 import { authFetch } from '@/lib/api'
+
+// Lazy load chart components (recharts is ~200KB)
+const BalanceTrendChart = dynamic(
+  () => import('@/components/dashboard/dashboard-charts').then((mod) => ({ default: mod.BalanceTrendChart })),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+)
+const EarningsChart = dynamic(
+  () => import('@/components/dashboard/dashboard-charts').then((mod) => ({ default: mod.EarningsChart })),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+)
+const PortfolioChart = dynamic(
+  () => import('@/components/dashboard/dashboard-charts').then((mod) => ({ default: mod.PortfolioChart })),
+  { ssr: false, loading: () => <ChartSkeleton /> }
+)
+
+function ChartSkeleton() {
+  return (
+    <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
+      <CardContent className="pt-6">
+        <div className="h-[280px] flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 interface DashboardStats {
   totalBalance: number
@@ -26,15 +51,6 @@ interface DashboardStats {
   monthlyEarnings: { month: string; roi: number; referral: number }[]
   balanceHistory: { day: string; balance: number }[]
   portfolioData: { name: string; value: number; color: string }[]
-}
-
-const earningsConfig = {
-  roi: { label: 'ROI Income', color: '#f97316' },
-  referral: { label: 'Referral Income', color: '#3b82f6' },
-}
-
-const balanceConfig = {
-  balance: { label: 'Balance', color: '#f97316' },
 }
 
 export default function DashboardPage() {
@@ -65,15 +81,7 @@ export default function DashboardPage() {
     fetchStats()
   }, [user.privyId, getAccessToken])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
-      </div>
-    )
-  }
-
-  const statCards = [
+  const statCards = useMemo(() => [
     {
       title: 'Total Balance',
       value: stats ? `₹${formatINR(stats.totalBalance)}` : '₹0.00',
@@ -89,32 +97,20 @@ export default function DashboardPage() {
       value: stats ? `₹${formatINR(stats.totalReferralIncome)}` : '₹0.00',
       icon: IndianRupee,
     },
-  ]
+  ], [stats])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      </div>
+    )
+  }
 
   const recentActivities = stats?.recentActivities ?? []
   const monthlyEarnings = stats?.monthlyEarnings ?? []
   const balanceHistory = stats?.balanceHistory ?? []
   const portfolioData = stats?.portfolioData ?? []
-
-  const formatActivityDescription = (type: string) => {
-    switch (type) {
-      case 'deposit': return 'Deposit received'
-      case 'roi': return 'Daily ROI credited'
-      case 'referral': return 'Referral bonus'
-      case 'withdraw': return 'Withdrawal processed'
-      default: return type
-    }
-  }
-
-  const timeAgo = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const minutes = Math.floor(diff / 60000)
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
-  }
 
   return (
     <div className="space-y-6">
@@ -155,138 +151,13 @@ export default function DashboardPage() {
 
       {/* Charts Row */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Balance Trend Chart */}
-        <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-orange-500" />
-              Balance Trend
-            </CardTitle>
-            <CardDescription className="text-white/50">
-              Your wallet balance over the last 7 days
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {balanceHistory.length > 0 ? (
-              <ChartContainer config={balanceConfig} className="h-[200px] w-full">
-                <AreaChart data={balanceHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f97316" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="#f97316" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="day" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${formatINR(value)}`} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Area
-                    type="monotone"
-                    dataKey="balance"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    fill="url(#balanceGradient)"
-                  />
-                </AreaChart>
-              </ChartContainer>
-            ) : (
-              <div className="h-[200px] flex items-center justify-center text-white/40">
-                No balance data yet
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Earnings Chart */}
-        <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-orange-500" />
-              Monthly Earnings
-            </CardTitle>
-            <CardDescription className="text-white/50">
-              ROI vs Referral income comparison
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {monthlyEarnings.length > 0 ? (
-              <>
-                <ChartContainer config={earningsConfig} className="h-[200px] w-full">
-                  <BarChart data={monthlyEarnings} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                    <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="roi" fill="#f97316" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="referral" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ChartContainer>
-                <div className="flex items-center justify-center gap-6 mt-4">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-sm bg-orange-500" />
-                    <span className="text-xs text-white/70">ROI Income</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-sm bg-blue-500" />
-                    <span className="text-xs text-white/70">Referral Income</span>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="h-[200px] flex items-center justify-center text-white/40">
-                No earnings data yet
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <BalanceTrendChart data={balanceHistory} />
+        <EarningsChart data={monthlyEarnings} />
       </div>
 
       {/* Portfolio Distribution & Recent Activity */}
       <div className="grid gap-4 md:grid-cols-3">
-        {/* Portfolio Distribution */}
-        <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-white flex items-center gap-2">
-              <IndianRupee className="h-5 w-5 text-orange-500" />
-              Portfolio Distribution
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {portfolioData.some((d) => d.value > 0) ? (
-              <>
-                <div className="flex justify-center">
-                  <PieChart width={180} height={180}>
-                    <Pie
-                      data={portfolioData.filter((d) => d.value > 0)}
-                      cx={90}
-                      cy={90}
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {portfolioData.filter((d) => d.value > 0).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  {portfolioData.map((item) => (
-                    <div key={item.name} className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-xs text-white/70 truncate">{item.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="h-[200px] flex items-center justify-center text-white/40">
-                No portfolio data yet
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <PortfolioChart data={portfolioData} />
 
         {/* Recent Activity */}
         <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl md:col-span-2">

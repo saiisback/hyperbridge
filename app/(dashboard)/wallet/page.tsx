@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowDownToLine, ArrowUpFromLine, History } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, History, Landmark } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/auth-context'
 import { authFetch } from '@/lib/api'
@@ -12,6 +12,7 @@ import { TokenSelector } from '@/components/wallet/token-selector'
 import { DepositTab } from '@/components/wallet/deposit-tab'
 import { WithdrawTab } from '@/components/wallet/withdraw-tab'
 import { TransactionHistory } from '@/components/wallet/transaction-history'
+import { WithdrawPrincipalTab } from '@/components/wallet/withdraw-principal-tab'
 import type { TokenKey } from '@/components/wallet/token-selector'
 import type { Transaction } from '@/components/wallet/transaction-history'
 
@@ -139,6 +140,13 @@ export default function WalletPage() {
             Withdraw
           </TabsTrigger>
           <TabsTrigger
+            value="withdraw-principal"
+            className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
+          >
+            <Landmark className="h-4 w-4 mr-2" />
+            Withdraw Principal
+          </TabsTrigger>
+          <TabsTrigger
             value="history"
             className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
           >
@@ -159,6 +167,17 @@ export default function WalletPage() {
             selectedToken={selectedToken}
             availableBalance={availableBalance}
             formattedBalance={formattedBalance}
+            balanceInfo={balanceInfo}
+            withdrawWindowOpen={withdrawWindowOpen}
+            countdown={countdown}
+            hasWindowData={!!(withdrawWindowData.opensAt || withdrawWindowData.closesAt)}
+            onSuccess={handleDepositWithdrawSuccess}
+          />
+        </TabsContent>
+
+        <TabsContent value="withdraw-principal">
+          <WithdrawPrincipalTab
+            selectedToken={selectedToken}
             balanceInfo={balanceInfo}
             withdrawWindowOpen={withdrawWindowOpen}
             countdown={countdown}

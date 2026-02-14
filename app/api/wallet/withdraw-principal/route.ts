@@ -8,7 +8,6 @@ import { rateLimit } from '@/lib/rate-limit'
 import { getAddress } from 'viem'
 import { z } from 'zod'
 
-const MIN_WITHDRAWAL_INR = 100
 const MAX_WITHDRAWAL_INR = 1_000_000
 
 const withdrawPrincipalSchema = z.object({
@@ -117,13 +116,6 @@ export async function POST(request: NextRequest) {
     // No platform fee for principal withdrawal
     const netAmountInr = amountInr
     const netCryptoAmount = cryptoAmount
-
-    if (amountInr < MIN_WITHDRAWAL_INR) {
-      return NextResponse.json(
-        { error: `Minimum withdrawal is ₹${MIN_WITHDRAWAL_INR}` },
-        { status: 400 }
-      )
-    }
 
     const result = await prisma.$transaction(async (tx) => {
       const info = await computeWithdrawalInfo(tx, user.id)

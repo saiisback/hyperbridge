@@ -8,8 +8,6 @@ import { rateLimit } from '@/lib/rate-limit'
 import { getAddress } from 'viem'
 import { z } from 'zod'
 
-// Minimum withdrawal amount in INR
-const MIN_WITHDRAWAL_INR = 100
 const MAX_WITHDRAWAL_INR = 1_000_000
 
 const withdrawSchema = z.object({
@@ -129,14 +127,6 @@ export async function POST(request: NextRequest) {
     const netAmountInr = amountInr - feeAmountInr
     // Net crypto amount to send on-chain (after 10% fee)
     const netCryptoAmount = netAmountInr / inrPrice
-
-    // Minimum withdrawal check
-    if (amountInr < MIN_WITHDRAWAL_INR) {
-      return NextResponse.json(
-        { error: `Minimum withdrawal is ₹${MIN_WITHDRAWAL_INR}` },
-        { status: 400 }
-      )
-    }
 
     // Serializable transaction: prevents concurrent withdrawals from reading stale balances
     const result = await prisma.$transaction(async (tx) => {

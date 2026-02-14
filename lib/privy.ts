@@ -4,8 +4,8 @@ export const privyConfig: PrivyClientConfig = {
   // Appearance
   appearance: {
     theme: 'dark',
-    accentColor: '#f97316', // Orange to match your theme
-    logo: '/icon.svg',
+    accentColor: '#FB923C', // Orange to match your theme
+    logo: '/logo.svg',
     showWalletLoginFirst: true,
   },
 

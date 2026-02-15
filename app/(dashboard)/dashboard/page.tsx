@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Wallet, TrendingUp, IndianRupee, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useWallet } from '@/hooks/use-wallet'
 import { useAuth } from '@/context/auth-context'
 import { cn, formatINR, timeAgo, formatActivityDescription } from '@/lib/utils'
 import { authFetch } from '@/lib/api'
@@ -54,7 +53,6 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
-  const { address } = useWallet()
   const { user, getAccessToken } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -119,7 +117,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
           Welcome Back{' '}
           <span className="bg-gradient-to-r from-orange-500 to-orange-300 bg-clip-text text-transparent">
-            {address ? `${address.slice(0, 6)}...` : 'User'}
+            {user.name || user.email || 'User'}
           </span>
         </h1>
         <p className="text-white/60">

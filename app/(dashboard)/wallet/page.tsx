@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowDownToLine, ArrowUpFromLine, History, Landmark } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, History, Landmark, Loader2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAuth } from '@/context/auth-context'
 import { authFetch } from '@/lib/api'
@@ -30,6 +30,7 @@ export default function WalletPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
   const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
+  const [isLoadingBalance, setIsLoadingBalance] = useState(true)
 
   // Withdrawal window state
   const [withdrawWindowData, setWithdrawWindowData] = useState<{
@@ -66,6 +67,7 @@ export default function WalletPage() {
 
   // Fetch balance breakdown
   const fetchBalanceInfo = useCallback(async () => {
+    if (!user.privyId) return
     try {
       const accessToken = await getAccessToken()
       if (!accessToken) return
@@ -81,8 +83,10 @@ export default function WalletPage() {
       }
     } catch (error) {
       console.error('Failed to fetch balance info:', error)
+    } finally {
+      setIsLoadingBalance(false)
     }
-  }, [getAccessToken])
+  }, [user.privyId, getAccessToken])
 
   useEffect(() => {
     fetchTransactions()
@@ -115,6 +119,14 @@ export default function WalletPage() {
   const handleDepositWithdrawSuccess = async () => {
     await fetchBalanceInfo()
     await fetchTransactions()
+  }
+
+  if (isLoadingBalance) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+      </div>
+    )
   }
 
   return (

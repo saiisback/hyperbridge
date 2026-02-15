@@ -28,7 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     unlinkDiscord,
   } = usePrivy()
 
-  const { getAccessToken } = useToken()
+  const { getAccessToken: _privyGetAccessToken } = useToken()
   const router = useRouter()
 
   // Database state
@@ -41,6 +41,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const syncRef = React.useRef<() => Promise<void>>(() => Promise.resolve())
   // Guard to prevent concurrent sync calls (race condition on login)
   const syncInFlightRef = React.useRef<Promise<void> | null>(null)
+
+  // Ref to track latest privyUser without triggering callback recreations
+  const privyUserRef = React.useRef(privyUser)
+  privyUserRef.current = privyUser
+
+  // Stabilize getAccessToken — Privy changes this reference frequently,
+  // causing cascading re-renders and redundant API calls across all pages
+  const getAccessTokenRef = React.useRef(_privyGetAccessToken)
+  getAccessTokenRef.current = _privyGetAccessToken
+  const getAccessToken = React.useCallback(() => getAccessTokenRef.current(), [])
 
   // Determine auth method
   const authMethod = React.useMemo<AuthMethod | null>(() => {
@@ -63,7 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sync Privy user to database
   const syncUserToDatabase = React.useCallback(async () => {
-    if (!privyUser) return
+    const pu = privyUserRef.current
+    if (!pu) return
 
     // If a sync is already in flight, reuse it instead of firing a duplicate request
     if (syncInFlightRef.current) {
@@ -79,11 +90,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const response = await authFetch('/api/auth/sync', accessToken, {
           method: 'POST',
           body: JSON.stringify({
-            email: privyUser.email?.address ||
-              privyUser.linkedAccounts?.find((a) => a.type === 'google_oauth')?.email ||
+            email: pu.email?.address ||
+              pu.linkedAccounts?.find((a) => a.type === 'google_oauth')?.email ||
               null,
             referredBy: localStorage.getItem('referralCode') || undefined,
-            wallets: privyUser.linkedAccounts
+            wallets: pu.linkedAccounts
               ?.filter((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')
               .map((w) => ({
                 address: w.address,
@@ -110,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     syncInFlightRef.current = doSync()
     return syncInFlightRef.current
-  }, [privyUser, getAccessToken])
+  }, [getAccessToken])
 
   // Keep the ref up-to-date so onComplete always calls the latest version
   syncRef.current = syncUserToDatabase
@@ -136,13 +147,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initial data fetch — reuses syncUserToDatabase to avoid duplicate logic
   const fetchUserData = syncUserToDatabase
 
+  const privyUserId = privyUser?.id
   React.useEffect(() => {
-    if (ready && authenticated && privyUser) {
+    if (ready && authenticated && privyUserId) {
       syncRef.current()
     } else if (ready && !authenticated) {
       setIsLoading(false)
     }
-  }, [ready, authenticated, privyUser])
+  }, [ready, authenticated, privyUserId])
 
   // Update profile
   const updateProfile = React.useCallback(

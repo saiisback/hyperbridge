@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -31,12 +32,30 @@ interface AdminUser {
   transactionCount: number
 }
 
+function TableSkeletonRows({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 py-2">
+          <Skeleton className="h-4 w-28 bg-white/10" />
+          <Skeleton className="h-4 w-36 bg-white/10 hidden sm:block" />
+          <Skeleton className="h-4 w-24 bg-white/10 hidden md:block" />
+          <Skeleton className="h-4 w-20 bg-white/10" />
+          <Skeleton className="h-4 w-10 bg-white/10 hidden sm:block" />
+          <Skeleton className="h-5 w-14 rounded-full bg-white/10" />
+          <Skeleton className="h-4 w-20 bg-white/10 hidden md:block" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
   const extraParams = searchQuery ? { search: searchQuery } : undefined
-  const { data: users, isLoading, page, totalPages, total, setPage } = useAdminData<AdminUser>(
+  const { data: users, isLoading, isFetching, page, totalPages, total, setPage } = useAdminData<AdminUser>(
     '/api/admin/users',
     'users',
     { extraParams }
@@ -69,13 +88,11 @@ export default function AdminUsersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-red-500" />
-            </div>
+            <TableSkeletonRows />
           ) : users.length === 0 ? (
             <p className="text-white/50 text-center py-8">No users found</p>
           ) : (
-            <>
+            <div className={isFetching ? 'opacity-60 transition-opacity' : ''}>
               <div className="overflow-x-auto -mx-6 px-6">
                 <Table>
                   <TableHeader>
@@ -155,7 +172,7 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>

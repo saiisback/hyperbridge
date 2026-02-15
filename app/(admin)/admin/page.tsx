@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Users, ArrowDownToLine, Wallet, ArrowUpFromLine, Loader2 } from 'lucide-react'
+import { Users, ArrowDownToLine, Wallet, ArrowUpFromLine } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -42,6 +43,27 @@ interface RecentTransaction {
   status: string
   createdAt: string
   user: { name: string | null; email: string | null }
+}
+
+const statCardMeta = [
+  { title: 'Total Users', icon: Users, color: 'blue' },
+  { title: 'Total Deposits', icon: ArrowDownToLine, color: 'green' },
+  { title: 'Total Balance', icon: Wallet, color: 'orange' },
+  { title: 'Pending Withdrawals', icon: ArrowUpFromLine, color: 'red' },
+]
+
+const colorMap: Record<string, string> = {
+  blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
+  green: 'from-green-500/20 to-green-600/10 border-green-500/30',
+  orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30',
+  red: 'from-red-500/20 to-red-600/10 border-red-500/30',
+}
+
+const iconColorMap: Record<string, string> = {
+  blue: 'bg-blue-500/20 border-blue-500/30 text-blue-500',
+  green: 'bg-green-500/20 border-green-500/30 text-green-500',
+  orange: 'bg-orange-500/20 border-orange-500/30 text-orange-500',
+  red: 'bg-red-500/20 border-red-500/30 text-red-500',
 }
 
 export default function AdminOverviewPage() {
@@ -84,58 +106,28 @@ export default function AdminOverviewPage() {
     fetchData()
   }, [user.privyId, getAccessToken])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-red-500" />
-      </div>
-    )
-  }
-
   const statCards = [
     {
-      title: 'Total Users',
-      value: stats?.totalUsers || 0,
-      subtitle: `${stats?.newUsersLast30d || 0} new in last 30 days`,
-      icon: Users,
-      color: 'blue',
+      ...statCardMeta[0],
+      value: stats ? stats.totalUsers : null,
+      subtitle: stats ? `${stats.newUsersLast30d} new in last 30 days` : '',
     },
     {
-      title: 'Total Deposits',
-      value: `₹${formatINR(parseFloat(stats?.totalDeposits || '0'))}`,
-      subtitle: `${stats?.totalDepositCount || 0} deposits`,
-      icon: ArrowDownToLine,
-      color: 'green',
+      ...statCardMeta[1],
+      value: stats ? `₹${formatINR(parseFloat(stats.totalDeposits))}` : null,
+      subtitle: stats ? `${stats.totalDepositCount} deposits` : '',
     },
     {
-      title: 'Total Balance',
-      value: `₹${formatINR(parseFloat(stats?.totalBalance || '0'))}`,
+      ...statCardMeta[2],
+      value: stats ? `₹${formatINR(parseFloat(stats.totalBalance))}` : null,
       subtitle: 'Across all users',
-      icon: Wallet,
-      color: 'orange',
     },
     {
-      title: 'Pending Withdrawals',
-      value: stats?.pendingWithdrawalCount || 0,
-      subtitle: `₹${formatINR(parseFloat(stats?.pendingWithdrawalSum || '0'))} pending`,
-      icon: ArrowUpFromLine,
-      color: 'red',
+      ...statCardMeta[3],
+      value: stats ? stats.pendingWithdrawalCount : null,
+      subtitle: stats ? `₹${formatINR(parseFloat(stats.pendingWithdrawalSum))} pending` : '',
     },
   ]
-
-  const colorMap: Record<string, string> = {
-    blue: 'from-blue-500/20 to-blue-600/10 border-blue-500/30',
-    green: 'from-green-500/20 to-green-600/10 border-green-500/30',
-    orange: 'from-orange-500/20 to-orange-600/10 border-orange-500/30',
-    red: 'from-red-500/20 to-red-600/10 border-red-500/30',
-  }
-
-  const iconColorMap: Record<string, string> = {
-    blue: 'bg-blue-500/20 border-blue-500/30 text-blue-500',
-    green: 'bg-green-500/20 border-green-500/30 text-green-500',
-    orange: 'bg-orange-500/20 border-orange-500/30 text-orange-500',
-    red: 'bg-red-500/20 border-red-500/30 text-red-500',
-  }
 
   return (
     <div className="space-y-6">
@@ -149,8 +141,17 @@ export default function AdminOverviewPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-white/70">{card.title}</p>
-                  <p className="text-2xl font-bold text-white mt-1">{card.value}</p>
-                  <p className="text-xs text-white/50 mt-1">{card.subtitle}</p>
+                  {isLoading ? (
+                    <>
+                      <Skeleton className="h-8 w-24 mt-1 bg-white/10" />
+                      <Skeleton className="h-3 w-32 mt-2 bg-white/10" />
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-2xl font-bold text-white mt-1">{card.value}</p>
+                      <p className="text-xs text-white/50 mt-1">{card.subtitle}</p>
+                    </>
+                  )}
                 </div>
                 <div className={`flex h-12 w-12 items-center justify-center rounded-full border ${iconColorMap[card.color]}`}>
                   <card.icon className="h-6 w-6" />
@@ -168,7 +169,17 @@ export default function AdminOverviewPage() {
             <CardDescription className="text-white/50">Latest registered users</CardDescription>
           </CardHeader>
           <CardContent>
-            {recentUsers.length === 0 ? (
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 py-2">
+                    <Skeleton className="h-4 w-28 bg-white/10" />
+                    <Skeleton className="h-4 w-36 bg-white/10 hidden sm:block" />
+                    <Skeleton className="h-4 w-20 bg-white/10" />
+                  </div>
+                ))}
+              </div>
+            ) : recentUsers.length === 0 ? (
               <p className="text-white/50 text-center py-4">No users yet</p>
             ) : (
               <div className="overflow-x-auto -mx-6 px-6">
@@ -203,7 +214,18 @@ export default function AdminOverviewPage() {
             <CardDescription className="text-white/50">Latest activity</CardDescription>
           </CardHeader>
           <CardContent>
-            {recentTransactions.length === 0 ? (
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-4 py-2">
+                    <Skeleton className="h-4 w-24 bg-white/10" />
+                    <Skeleton className="h-4 w-16 bg-white/10 hidden sm:block" />
+                    <Skeleton className="h-4 w-20 bg-white/10" />
+                    <Skeleton className="h-5 w-16 rounded-full bg-white/10" />
+                  </div>
+                ))}
+              </div>
+            ) : recentTransactions.length === 0 ? (
               <p className="text-white/50 text-center py-4">No transactions yet</p>
             ) : (
               <div className="overflow-x-auto -mx-6 px-6">

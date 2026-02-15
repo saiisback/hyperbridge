@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { Wallet, TrendingUp, IndianRupee, ArrowUpRight, ArrowDownRight, Activity, Loader2 } from 'lucide-react'
+import { Wallet, TrendingUp, IndianRupee, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/auth-context'
 import { cn, formatINR, timeAgo, formatActivityDescription } from '@/lib/utils'
 import { authFetch } from '@/lib/api'
@@ -27,7 +28,7 @@ function ChartSkeleton() {
     <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
       <CardContent className="pt-6">
         <div className="h-[280px] flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+          <Skeleton className="h-full w-full bg-white/10" />
         </div>
       </CardContent>
     </Card>
@@ -51,6 +52,12 @@ interface DashboardStats {
   balanceHistory: { day: string; balance: number }[]
   portfolioData: { name: string; value: number; color: string }[]
 }
+
+const statCardMeta = [
+  { title: 'Total Balance', icon: Wallet, key: 'totalBalance' as const },
+  { title: 'ROI Income', icon: TrendingUp, key: 'totalRoiIncome' as const },
+  { title: 'Referral Income', icon: IndianRupee, key: 'totalReferralIncome' as const },
+]
 
 export default function DashboardPage() {
   const { user, getAccessToken } = useAuth()
@@ -79,31 +86,13 @@ export default function DashboardPage() {
     fetchStats()
   }, [user.privyId, getAccessToken])
 
-  const statCards = useMemo(() => [
-    {
-      title: 'Total Balance',
-      value: stats ? `₹${formatINR(stats.totalBalance)}` : '₹0.00',
-      icon: Wallet,
-    },
-    {
-      title: 'ROI Income',
-      value: stats ? `₹${formatINR(stats.totalRoiIncome)}` : '₹0.00',
-      icon: TrendingUp,
-    },
-    {
-      title: 'Referral Income',
-      value: stats ? `₹${formatINR(stats.totalReferralIncome)}` : '₹0.00',
-      icon: IndianRupee,
-    },
-  ], [stats])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
-      </div>
-    )
-  }
+  const statCards = useMemo(() =>
+    statCardMeta.map((meta) => ({
+      ...meta,
+      value: stats ? `₹${formatINR(stats[meta.key])}` : null,
+    })),
+    [stats]
+  )
 
   const recentActivities = stats?.recentActivities ?? []
   const monthlyEarnings = stats?.monthlyEarnings ?? []
@@ -141,7 +130,11 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{stat.value}</div>
+              {loading ? (
+                <Skeleton className="h-8 w-32 bg-white/10" />
+              ) : (
+                <div className="text-2xl font-bold text-white">{stat.value}</div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -169,7 +162,22 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {recentActivities.length > 0 ? (
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 p-3 rounded-lg bg-white/5">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-10 w-10 rounded-full bg-white/10" />
+                      <div className="space-y-2">
+                        <Skeleton className="h-4 w-28 bg-white/10" />
+                        <Skeleton className="h-3 w-16 bg-white/10" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-4 w-20 bg-white/10" />
+                  </div>
+                ))}
+              </div>
+            ) : recentActivities.length > 0 ? (
               <div className="space-y-3">
                 {recentActivities.map((activity) => (
                   <div

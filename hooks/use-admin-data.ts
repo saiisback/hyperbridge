@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
 
@@ -11,6 +11,7 @@ interface UseAdminDataOptions {
 interface UseAdminDataReturn<T> {
   data: T[]
   isLoading: boolean
+  isFetching: boolean
   page: number
   totalPages: number
   total: number
@@ -26,6 +27,7 @@ export function useAdminData<T>(
   const { user, getAccessToken } = useAuth()
   const [data, setData] = useState<T[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isFetching, setIsFetching] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
@@ -37,9 +39,23 @@ export function useAdminData<T>(
         .join('&')
     : ''
 
+  // Track previous extraParamsKey to detect filter changes
+  const prevExtraParamsKeyRef = useRef(extraParamsKey)
+
   const fetchData = useCallback(async () => {
     if (!user.privyId) return
-    setIsLoading(true)
+
+    // If filters changed and we're not on page 1, reset page and skip this fetch
+    // The page change will trigger a new fetch with page=1
+    const filtersChanged = prevExtraParamsKeyRef.current !== extraParamsKey
+    prevExtraParamsKeyRef.current = extraParamsKey
+
+    if (filtersChanged && page !== 1) {
+      setPage(1)
+      return
+    }
+
+    setIsFetching(true)
     try {
       const accessToken = await getAccessToken()
       if (!accessToken) return
@@ -60,6 +76,7 @@ export function useAdminData<T>(
     } catch (error) {
       console.error(`Failed to fetch ${dataKey}:`, error)
     } finally {
+      setIsFetching(false)
       setIsLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,5 +86,5 @@ export function useAdminData<T>(
     fetchData()
   }, [fetchData])
 
-  return { data, isLoading, page, totalPages, total, setPage, refetch: fetchData }
+  return { data, isLoading, isFetching, page, totalPages, total, setPage, refetch: fetchData }
 }

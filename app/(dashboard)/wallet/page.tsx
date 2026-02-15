@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowDownToLine, ArrowUpFromLine, History, Landmark, Loader2 } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpFromLine, History, Landmark } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/auth-context'
 import { authFetch } from '@/lib/api'
 import { formatINR } from '@/lib/utils'
@@ -115,17 +116,20 @@ export default function WalletPage() {
     await Promise.all([fetchBalanceInfo(), fetchTransactions()])
   }
 
-  if (isLoadingBalance) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
-      <BalanceCards formattedBalance={formattedBalance} balanceInfo={balanceInfo} />
+      {isLoadingBalance ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-black/50 backdrop-blur-sm border border-white/10 rounded-xl p-6">
+              <Skeleton className="h-4 w-24 mb-3 bg-white/10" />
+              <Skeleton className="h-8 w-32 bg-white/10" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <BalanceCards formattedBalance={formattedBalance} balanceInfo={balanceInfo} />
+      )}
 
       <TokenSelector selectedToken={selectedToken} onSelectToken={setSelectedToken} />
 

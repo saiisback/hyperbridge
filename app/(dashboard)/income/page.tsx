@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, Copy, Check, Calendar, IndianRupee, Loader2, Users } from 'lucide-react'
+import { TrendingUp, Copy, Check, Calendar, IndianRupee, Users } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -65,21 +66,13 @@ export default function IncomePage() {
   }, [user.privyId, getAccessToken])
 
   const referralLink = data?.referralCode
-    ? `${window.location.origin}/ref/${data.referralCode}`
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/ref/${data.referralCode}`
     : 'No referral code available'
 
   const copyReferralLink = () => {
     navigator.clipboard.writeText(referralLink)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
-      </div>
-    )
   }
 
   return (
@@ -91,12 +84,21 @@ export default function IncomePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white/70">Total ROI Income</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  ₹{formatAmount(data?.totalRoiIncome ?? 0)}
-                </p>
-                <p className="text-sm text-green-500 mt-1">
-                  +₹{formatAmount(data?.todayRoi ?? 0)} today
-                </p>
+                {loading ? (
+                  <>
+                    <Skeleton className="h-9 w-36 mt-2 bg-white/10" />
+                    <Skeleton className="h-4 w-24 mt-2 bg-white/10" />
+                  </>
+                ) : (
+                  <>
+                    <p className="text-3xl font-bold text-white mt-2">
+                      ₹{formatAmount(data?.totalRoiIncome ?? 0)}
+                    </p>
+                    <p className="text-sm text-green-500 mt-1">
+                      +₹{formatAmount(data?.todayRoi ?? 0)} today
+                    </p>
+                  </>
+                )}
               </div>
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-500/20 border border-green-500/30">
                 <TrendingUp className="h-7 w-7 text-green-500" />
@@ -110,9 +112,13 @@ export default function IncomePage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-white/70">Total Referral Income</p>
-                <p className="text-3xl font-bold text-white mt-2">
-                  ₹{formatAmount(data?.totalReferralIncome ?? 0)}
-                </p>
+                {loading ? (
+                  <Skeleton className="h-9 w-36 mt-2 bg-white/10" />
+                ) : (
+                  <p className="text-3xl font-bold text-white mt-2">
+                    ₹{formatAmount(data?.totalReferralIncome ?? 0)}
+                  </p>
+                )}
               </div>
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-500/20 border border-orange-500/30">
                 <IndianRupee className="h-7 w-7 text-orange-500" />
@@ -153,9 +159,13 @@ export default function IncomePage() {
                   </div>
                   <div>
                     <p className="text-sm text-white/50">Investment</p>
-                    <p className="text-xl font-bold text-white">
-                      ₹{formatAmount(data?.totalInvested ?? 0)}
-                    </p>
+                    {loading ? (
+                      <Skeleton className="h-7 w-24 mt-1 bg-white/10" />
+                    ) : (
+                      <p className="text-xl font-bold text-white">
+                        ₹{formatAmount(data?.totalInvested ?? 0)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -169,9 +179,13 @@ export default function IncomePage() {
                   </div>
                   <div>
                     <p className="text-sm text-white/50">Daily ROI</p>
-                    <p className="text-xl font-bold text-white">
-                      {data?.dailyRoiRate ?? 0.5}%
-                    </p>
+                    {loading ? (
+                      <Skeleton className="h-7 w-16 mt-1 bg-white/10" />
+                    ) : (
+                      <p className="text-xl font-bold text-white">
+                        {data?.dailyRoiRate ?? 0.5}%
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -185,9 +199,13 @@ export default function IncomePage() {
                   </div>
                   <div>
                     <p className="text-sm text-white/50">Days Active</p>
-                    <p className="text-xl font-bold text-white">
-                      {data?.daysActive ?? 0} Days
-                    </p>
+                    {loading ? (
+                      <Skeleton className="h-7 w-20 mt-1 bg-white/10" />
+                    ) : (
+                      <p className="text-xl font-bold text-white">
+                        {data?.daysActive ?? 0} Days
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -203,7 +221,18 @@ export default function IncomePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {(data?.roiHistory ?? []).length > 0 ? (
+              {loading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 py-2">
+                      <Skeleton className="h-4 w-24 bg-white/10" />
+                      <Skeleton className="h-4 w-20 bg-white/10" />
+                      <Skeleton className="h-4 w-16 bg-white/10 hidden sm:block" />
+                      <Skeleton className="h-5 w-16 rounded-full bg-white/10" />
+                    </div>
+                  ))}
+                </div>
+              ) : (data?.roiHistory ?? []).length > 0 ? (
                 <div className="overflow-x-auto -mx-6 px-6">
                   <Table>
                     <TableHeader>
@@ -253,12 +282,17 @@ export default function IncomePage() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-4 rounded-lg bg-white/5 border border-white/10">
-                <code className="flex-1 text-xs sm:text-sm text-orange-500 font-mono break-all">
-                  {referralLink}
-                </code>
+                {loading ? (
+                  <Skeleton className="flex-1 h-5 bg-white/10" />
+                ) : (
+                  <code className="flex-1 text-xs sm:text-sm text-orange-500 font-mono break-all">
+                    {referralLink}
+                  </code>
+                )}
                 <button
                   onClick={copyReferralLink}
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors shrink-0"
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white transition-colors shrink-0 disabled:opacity-50"
                 >
                   {copied ? (
                     <>
@@ -294,13 +328,21 @@ export default function IncomePage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="p-4 rounded-lg bg-white/5 border border-white/10">
                     <p className="text-sm text-white/50 mb-1">Members</p>
-                    <p className="text-2xl font-bold text-white">{data?.directMembers ?? 0}</p>
+                    {loading ? (
+                      <Skeleton className="h-8 w-12 bg-white/10" />
+                    ) : (
+                      <p className="text-2xl font-bold text-white">{data?.directMembers ?? 0}</p>
+                    )}
                   </div>
                   <div className="p-4 rounded-lg bg-white/5 border border-white/10">
                     <p className="text-sm text-white/50 mb-1">Earnings</p>
-                    <p className="text-2xl font-bold text-green-500">
-                      ₹{formatAmount(data?.directEarnings ?? 0)}
-                    </p>
+                    {loading ? (
+                      <Skeleton className="h-8 w-24 bg-white/10" />
+                    ) : (
+                      <p className="text-2xl font-bold text-green-500">
+                        ₹{formatAmount(data?.directEarnings ?? 0)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -313,13 +355,21 @@ export default function IncomePage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="p-4 rounded-lg bg-white/5 border border-white/10">
                     <p className="text-sm text-white/50 mb-1">Members</p>
-                    <p className="text-2xl font-bold text-white">{data?.level2Members ?? 0}</p>
+                    {loading ? (
+                      <Skeleton className="h-8 w-12 bg-white/10" />
+                    ) : (
+                      <p className="text-2xl font-bold text-white">{data?.level2Members ?? 0}</p>
+                    )}
                   </div>
                   <div className="p-4 rounded-lg bg-white/5 border border-white/10">
                     <p className="text-sm text-white/50 mb-1">Earnings</p>
-                    <p className="text-2xl font-bold text-green-500">
-                      ₹{formatAmount(data?.level2Earnings ?? 0)}
-                    </p>
+                    {loading ? (
+                      <Skeleton className="h-8 w-24 bg-white/10" />
+                    ) : (
+                      <p className="text-2xl font-bold text-green-500">
+                        ₹{formatAmount(data?.level2Earnings ?? 0)}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -335,7 +385,18 @@ export default function IncomePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {(data?.referralHistory ?? []).length > 0 ? (
+              {loading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 py-2">
+                      <Skeleton className="h-4 w-24 bg-white/10" />
+                      <Skeleton className="h-5 w-10 rounded-full bg-white/10" />
+                      <Skeleton className="h-5 w-16 rounded-full bg-white/10 hidden sm:block" />
+                      <Skeleton className="h-4 w-20 bg-white/10" />
+                    </div>
+                  ))}
+                </div>
+              ) : (data?.referralHistory ?? []).length > 0 ? (
                 <div className="overflow-x-auto -mx-6 px-6">
                   <Table>
                     <TableHeader>

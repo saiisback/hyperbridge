@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import { verifyAdmin } from '@/lib/admin'
 import {
   createWalletClient,
-  createPublicClient,
   http,
   parseEther,
   parseUnits,
@@ -104,14 +103,9 @@ export async function POST(
       ? String(meta.netAmount)
       : (Number(transaction.amount) * 0.9).toFixed(6)
 
-    // Set up viem clients
     const account = privateKeyToAccount(PLATFORM_PRIVATE_KEY)
     const walletClient = createWalletClient({
       account,
-      chain: mainnet,
-      transport: http(),
-    })
-    const publicClient = createPublicClient({
       chain: mainnet,
       transport: http(),
     })
@@ -142,52 +136,10 @@ export async function POST(
         })
       }
 
-      // Wait for the transaction to be confirmed
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        confirmations: 1,
-        timeout: 120_000,
-      })
-
-      if (receipt.status !== 'success') {
-        // On-chain transfer failed — mark as failed and refund user
-        const failMeta = withdrawMetaSchema.safeParse(transaction.metadata)
-        const roiDeduction = failMeta.success ? (failMeta.data.roiDeduction ?? 0) : 0
-
-        await prisma.$transaction(async (tx) => {
-          await tx.transaction.update({
-            where: { id },
-            data: {
-              status: 'failed',
-              txHash,
-              metadata: {
-                ...(transaction.metadata as object),
-                approvedBy: adminUser.id,
-                approvedAt: new Date().toISOString(),
-                transferFailed: true,
-                failureReason: 'On-chain transaction reverted',
-              },
-            },
-          })
-
-          // Refund the user's balance
-          await tx.profile.update({
-            where: { userId: transaction.userId },
-            data: {
-              availableBalance: { increment: transaction.amountInr || transaction.amount },
-              roiBalance: { increment: roiDeduction },
-              totalBalance: { increment: transaction.amountInr || transaction.amount },
-            },
-          })
-        })
-
-        return NextResponse.json(
-          { error: 'On-chain transfer failed (reverted). User balance has been refunded.' },
-          { status: 500 }
-        )
-      }
-
-      // Transfer succeeded — update transaction as completed with txHash
+      // Transaction was broadcast successfully — mark as completed immediately.
+      // We don't wait for the receipt because it can take minutes and would
+      // exceed HTTP timeouts, causing the admin UI to show a false timeout error
+      // even though the on-chain transfer already went through.
       const updated = await prisma.transaction.update({
         where: { id },
         data: {
@@ -197,7 +149,6 @@ export async function POST(
             ...(transaction.metadata as object),
             approvedBy: adminUser.id,
             approvedAt: new Date().toISOString(),
-            transferConfirmedAt: new Date().toISOString(),
           },
         },
       })

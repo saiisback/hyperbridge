@@ -39,6 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Ref to always hold the latest syncUserToDatabase, avoiding stale closures
   const syncRef = React.useRef<() => Promise<void>>(() => Promise.resolve())
+  // Guard to prevent concurrent sync calls (race condition on login)
+  const syncInFlightRef = React.useRef<Promise<void> | null>(null)
 
   // Determine auth method
   const authMethod = React.useMemo<AuthMethod | null>(() => {
@@ -63,40 +65,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const syncUserToDatabase = React.useCallback(async () => {
     if (!privyUser) return
 
-    setIsLoading(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) return
-
-      const response = await authFetch('/api/auth/sync', accessToken, {
-        method: 'POST',
-        body: JSON.stringify({
-          email: privyUser.email?.address ||
-            privyUser.linkedAccounts?.find((a) => a.type === 'google_oauth')?.email ||
-            null,
-          referredBy: localStorage.getItem('referralCode') || undefined,
-          wallets: privyUser.linkedAccounts
-            ?.filter((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')
-            .map((w) => ({
-              address: w.address,
-              chainType: w.chainType || 'ethereum',
-              walletClient: w.walletClientType || null,
-            })) || [],
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setDbUser(data.user)
-        setProfile(data.profile)
-        setWallets(data.wallets)
-        localStorage.removeItem('referralCode')
-      }
-    } catch (error) {
-      console.error('Failed to sync user:', error)
-    } finally {
-      setIsLoading(false)
+    // If a sync is already in flight, reuse it instead of firing a duplicate request
+    if (syncInFlightRef.current) {
+      return syncInFlightRef.current
     }
+
+    const doSync = async () => {
+      setIsLoading(true)
+      try {
+        const accessToken = await getAccessToken()
+        if (!accessToken) return
+
+        const response = await authFetch('/api/auth/sync', accessToken, {
+          method: 'POST',
+          body: JSON.stringify({
+            email: privyUser.email?.address ||
+              privyUser.linkedAccounts?.find((a) => a.type === 'google_oauth')?.email ||
+              null,
+            referredBy: localStorage.getItem('referralCode') || undefined,
+            wallets: privyUser.linkedAccounts
+              ?.filter((a): a is LinkedAccountWithMetadata & { type: 'wallet' } => a.type === 'wallet')
+              .map((w) => ({
+                address: w.address,
+                chainType: w.chainType || 'ethereum',
+                walletClient: w.walletClientType || null,
+              })) || [],
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setDbUser(data.user)
+          setProfile(data.profile)
+          setWallets(data.wallets)
+          localStorage.removeItem('referralCode')
+        }
+      } catch (error) {
+        console.error('Failed to sync user:', error)
+      } finally {
+        setIsLoading(false)
+        syncInFlightRef.current = null
+      }
+    }
+
+    syncInFlightRef.current = doSync()
+    return syncInFlightRef.current
   }, [privyUser, getAccessToken])
 
   // Keep the ref up-to-date so onComplete always calls the latest version

@@ -67,60 +67,72 @@ export async function POST(request: NextRequest) {
         referralCode = generateReferralCode()
       }
 
-      const result = await prisma.$transaction(async (tx) => {
-        const newUser = await tx.user.create({
-          data: {
-            privyId,
-            email,
-            primaryWallet,
-            name: null,
-            isActive: true,
-            kycVerified: false,
-          },
-        })
-
-        await tx.profile.create({
-          data: {
-            userId: newUser.id,
-            referralCode,
-            referredBy: referredBy || null,
-            totalBalance: 0,
-            availableBalance: 0,
-            totalInvested: 0,
-          },
-        })
-
-        // Self-referral prevention: only create referral if referrer is not the new user
-        if (referrerUser && referrerUser.id !== newUser.id) {
-          await tx.referral.create({
+      try {
+        const result = await prisma.$transaction(async (tx) => {
+          const newUser = await tx.user.create({
             data: {
-              referrerId: referrerUser.id,
-              refereeId: newUser.id,
-              level: 1,
-              totalEarnings: 0,
+              privyId,
+              email,
+              primaryWallet,
+              name: null,
+              isActive: true,
+              kycVerified: false,
             },
           })
 
-          // Create L2 referral if the referrer was also referred by someone (grandparent)
-          const grandparentReferral = await tx.referral.findFirst({
-            where: { refereeId: referrerUser.id, level: 1 },
+          await tx.profile.create({
+            data: {
+              userId: newUser.id,
+              referralCode,
+              referredBy: referredBy || null,
+              totalBalance: 0,
+              availableBalance: 0,
+              totalInvested: 0,
+            },
           })
-          if (grandparentReferral && grandparentReferral.referrerId !== newUser.id) {
+
+          // Self-referral prevention: only create referral if referrer is not the new user
+          if (referrerUser && referrerUser.id !== newUser.id) {
             await tx.referral.create({
               data: {
-                referrerId: grandparentReferral.referrerId,
+                referrerId: referrerUser.id,
                 refereeId: newUser.id,
-                level: 2,
+                level: 1,
                 totalEarnings: 0,
               },
             })
+
+            // Create L2 referral if the referrer was also referred by someone (grandparent)
+            const grandparentReferral = await tx.referral.findFirst({
+              where: { refereeId: referrerUser.id, level: 1 },
+            })
+            if (grandparentReferral && grandparentReferral.referrerId !== newUser.id) {
+              await tx.referral.create({
+                data: {
+                  referrerId: grandparentReferral.referrerId,
+                  refereeId: newUser.id,
+                  level: 2,
+                  totalEarnings: 0,
+                },
+              })
+            }
           }
+
+          return newUser
+        })
+
+        user = result
+      } catch (txError: any) {
+        // Race condition: another request created this user between our findUnique and create
+        if (txError?.code === 'P2002') {
+          user = await prisma.user.findUnique({ where: { privyId } })
+          if (!user) {
+            throw txError
+          }
+        } else {
+          throw txError
         }
-
-        return newUser
-      })
-
-      user = result
+      }
     } else {
       // Update existing user
       user = await prisma.user.update({

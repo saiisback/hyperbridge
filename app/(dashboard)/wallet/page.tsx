@@ -35,6 +35,7 @@ export default function WalletPage() {
           lockedPrincipal: statsData.lockedPrincipal ?? 0,
           unlockedPrincipal: statsData.unlockedPrincipal ?? 0,
           availableWithdrawal: statsData.availableWithdrawal ?? 0,
+          totalInvested: statsData.totalInvested ?? 0,
         }
       : null,
     [statsData]
@@ -59,8 +60,8 @@ export default function WalletPage() {
   return (
     <div className="space-y-6">
       {isLoadingBalance ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
             <div key={i} className="bg-black/50 backdrop-blur-sm border border-white/10 rounded-xl p-6">
               <Skeleton className="h-4 w-24 mb-3 bg-white/10" />
               <Skeleton className="h-8 w-32 bg-white/10" />
@@ -68,7 +69,7 @@ export default function WalletPage() {
           ))}
         </div>
       ) : (
-        <BalanceCards formattedBalance={formattedBalance} balanceInfo={balanceInfo} />
+        <BalanceCards balanceInfo={balanceInfo} />
       )}
 
       <TokenSelector selectedToken={selectedToken} onSelectToken={setSelectedToken} />

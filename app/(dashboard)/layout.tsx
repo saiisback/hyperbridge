@@ -28,11 +28,11 @@ export default function DashboardLayout({
       router.push('/login')
     }
 
-    // Redirect to onboarding if user hasn't completed it
-    if (isReady && !isLoading && isAuthenticated && !user.onboardingCompleted) {
+    // Redirect to onboarding if user hasn't completed it (only when dbUser is loaded)
+    if (isReady && !isLoading && isAuthenticated && user.dbUser && !user.onboardingCompleted) {
       router.push('/onboarding')
     }
-  }, [isReady, isLoading, isAuthenticated, user.onboardingCompleted, router])
+  }, [isReady, isLoading, isAuthenticated, user.dbUser, user.onboardingCompleted, router])
 
   if (!isReady || isLoading) {
     return (

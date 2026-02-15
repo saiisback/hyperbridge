@@ -10,10 +10,10 @@ export default function LoginPage() {
   const router = useRouter()
 
   useEffect(() => {
-    if (isReady && isAuthenticated) {
+    if (isReady && isAuthenticated && user.dbUser) {
       router.push(user.onboardingCompleted ? '/dashboard' : '/onboarding')
     }
-  }, [isReady, isAuthenticated, user.onboardingCompleted, router])
+  }, [isReady, isAuthenticated, user.dbUser, user.onboardingCompleted, router])
 
   if (!isReady || isLoading) {
     return (

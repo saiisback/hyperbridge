@@ -143,7 +143,7 @@ export default function IncomePage() {
                       <Skeleton className="h-7 w-16 mt-1 bg-white/10" />
                     ) : (
                       <p className="text-xl font-bold text-white">
-                        {data?.dailyRoiRate ?? 0.5}%
+                        {data?.dailyRoiRate ?? 0.35}%
                       </p>
                     )}
                   </div>

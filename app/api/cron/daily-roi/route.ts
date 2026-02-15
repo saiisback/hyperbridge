@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 
-const DAILY_ROI_RATE = 0.005 // 0.5%
+const DAILY_ROI_RATE = 0.0035 // 0.35%
 
 function verifyCronSecret(authHeader: string | null): boolean {
   const cronSecret = process.env.CRON_SECRET

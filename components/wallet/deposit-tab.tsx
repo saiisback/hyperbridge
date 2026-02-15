@@ -230,7 +230,7 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
               <p className="text-sm font-medium text-yellow-400">Principal Lock Period</p>
               <p className="text-xs text-white/60 mt-1">
                 Your deposited principal will be locked for 4 months.
-                Daily ROI earnings (0.5%) will be available for withdrawal immediately.
+                Daily ROI earnings (0.35%) will be available for withdrawal immediately.
               </p>
             </div>
           </div>

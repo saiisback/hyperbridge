@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     const roiHistory = roiTransactions.map((tx) => ({
       date: tx.createdAt.toISOString().split('T')[0],
       amount: Number(tx.amount),
-      percentage: '0.5%',
+      percentage: '0.35%',
       status: 'credited',
     }))
 
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       totalRoiIncome,
       todayRoi,
       totalInvested: Number(user.profile.totalInvested),
-      dailyRoiRate: 0.5,
+      dailyRoiRate: 0.35,
       daysActive,
       roiHistory,
       totalReferralIncome,

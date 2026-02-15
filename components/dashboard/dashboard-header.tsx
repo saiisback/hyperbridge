@@ -11,12 +11,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb'
-import { Badge } from '@/components/ui/badge'
-import { useWallet } from '@/hooks/use-wallet'
-
-function truncateAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
-}
 
 function getPageTitle(pathname: string): string {
   const routes: Record<string, string> = {
@@ -30,7 +24,6 @@ function getPageTitle(pathname: string): string {
 
 export function DashboardHeader() {
   const pathname = usePathname()
-  const { address, isConnected } = useWallet()
   const pageTitle = getPageTitle(pathname)
 
   return (

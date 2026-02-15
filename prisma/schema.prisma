@@ -102,6 +102,7 @@ model Transaction {
   @@index([status])
   @@index([type])
   @@index([userId, type, status])
+  @@index([userId, status, createdAt])
   @@map("transactions")
 }
 
@@ -117,6 +118,7 @@ model Referral {
   referee  User @relation("RefereeRelation", fields: [refereeId], references: [id], onDelete: Cascade)
 
   @@unique([referrerId, refereeId])
+  @@index([referrerId, level])
   @@map("referrals")
 }
 

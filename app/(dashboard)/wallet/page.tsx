@@ -88,37 +88,31 @@ export default function WalletPage() {
     }
   }, [user.privyId, getAccessToken])
 
+  // Fetch all wallet data in parallel
   useEffect(() => {
-    fetchTransactions()
-  }, [fetchTransactions])
-
-  useEffect(() => {
-    fetchBalanceInfo()
-  }, [fetchBalanceInfo])
-
-  // Fetch withdrawal window status
-  useEffect(() => {
-    const fetchWindow = async () => {
-      try {
-        const res = await fetch('/api/withdraw-window')
-        if (res.ok) {
-          const data = await res.json()
-          setWithdrawWindowData({
-            isOpen: data.isOpen,
-            opensAt: data.opensAt,
-            closesAt: data.closesAt,
+    const fetchAll = async () => {
+      await Promise.all([
+        fetchTransactions(),
+        fetchBalanceInfo(),
+        fetch('/api/withdraw-window')
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data) {
+              setWithdrawWindowData({
+                isOpen: data.isOpen,
+                opensAt: data.opensAt,
+                closesAt: data.closesAt,
+              })
+            }
           })
-        }
-      } catch (error) {
-        console.error('Failed to fetch withdrawal window:', error)
-      }
+          .catch((error) => console.error('Failed to fetch withdrawal window:', error)),
+      ])
     }
-    fetchWindow()
-  }, [])
+    fetchAll()
+  }, [fetchTransactions, fetchBalanceInfo])
 
   const handleDepositWithdrawSuccess = async () => {
-    await fetchBalanceInfo()
-    await fetchTransactions()
+    await Promise.all([fetchBalanceInfo(), fetchTransactions()])
   }
 
   if (isLoadingBalance) {

@@ -10,7 +10,18 @@ import { WalletProvider } from '@/context/wallet-context'
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = React.useState(() => new QueryClient())
+  const [queryClient] = React.useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 5 * 60 * 1000, // 5 minutes
+            gcTime: 10 * 60 * 1000, // 10 minutes
+            refetchOnWindowFocus: false,
+          },
+        },
+      })
+  )
 
   if (!privyAppId) {
     console.error('NEXT_PUBLIC_PRIVY_APP_ID is not set')

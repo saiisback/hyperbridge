@@ -25,44 +25,66 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Total ROI income
-    const roiAgg = await prisma.transaction.aggregate({
-      where: { userId: user.id, type: 'roi', status: 'completed' },
-      _sum: { amount: true },
-    })
-    const totalRoiIncome = Number(roiAgg._sum.amount ?? 0)
-
-    // Today's ROI
+    // Today's date boundaries
     const startOfDay = new Date()
     startOfDay.setUTCHours(0, 0, 0, 0)
     const endOfDay = new Date()
     endOfDay.setUTCHours(23, 59, 59, 999)
 
-    const todayRoiTx = await prisma.transaction.findFirst({
-      where: {
-        userId: user.id,
-        type: 'roi',
-        status: 'completed',
-        createdAt: { gte: startOfDay, lte: endOfDay },
-      },
-    })
-    const todayRoi = todayRoiTx ? Number(todayRoiTx.amount) : 0
+    // Run all 8 independent queries in parallel
+    const [
+      roiAgg,
+      todayRoiTx,
+      firstDeposit,
+      roiTransactions,
+      referralAgg,
+      l1Referrals,
+      l2Referrals,
+      referralTransactions,
+    ] = await Promise.all([
+      prisma.transaction.aggregate({
+        where: { userId: user.id, type: 'roi', status: 'completed' },
+        _sum: { amount: true },
+      }),
+      prisma.transaction.findFirst({
+        where: {
+          userId: user.id,
+          type: 'roi',
+          status: 'completed',
+          createdAt: { gte: startOfDay, lte: endOfDay },
+        },
+      }),
+      prisma.transaction.findFirst({
+        where: { userId: user.id, type: 'deposit', status: 'completed' },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.transaction.findMany({
+        where: { userId: user.id, type: 'roi', status: 'completed' },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      prisma.transaction.aggregate({
+        where: { userId: user.id, type: 'referral', status: 'completed' },
+        _sum: { amount: true },
+      }),
+      prisma.referral.findMany({
+        where: { referrerId: user.id, level: 1 },
+      }),
+      prisma.referral.findMany({
+        where: { referrerId: user.id, level: 2 },
+      }),
+      prisma.transaction.findMany({
+        where: { userId: user.id, type: 'referral', status: 'completed' },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+    ])
 
-    // Days active (since first deposit)
-    const firstDeposit = await prisma.transaction.findFirst({
-      where: { userId: user.id, type: 'deposit', status: 'completed' },
-      orderBy: { createdAt: 'asc' },
-    })
+    const totalRoiIncome = Number(roiAgg._sum.amount ?? 0)
+    const todayRoi = todayRoiTx ? Number(todayRoiTx.amount) : 0
     const daysActive = firstDeposit
       ? Math.floor((Date.now() - firstDeposit.createdAt.getTime()) / (1000 * 60 * 60 * 24))
       : 0
-
-    // ROI history (last 30)
-    const roiTransactions = await prisma.transaction.findMany({
-      where: { userId: user.id, type: 'roi', status: 'completed' },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    })
 
     const roiHistory = roiTransactions.map((tx) => ({
       date: tx.createdAt.toISOString().split('T')[0],
@@ -71,33 +93,13 @@ export async function GET(request: NextRequest) {
       status: 'credited',
     }))
 
-    // Total referral income
-    const referralAgg = await prisma.transaction.aggregate({
-      where: { userId: user.id, type: 'referral', status: 'completed' },
-      _sum: { amount: true },
-    })
     const totalReferralIncome = Number(referralAgg._sum.amount ?? 0)
 
-    // L1 referral stats
-    const l1Referrals = await prisma.referral.findMany({
-      where: { referrerId: user.id, level: 1 },
-    })
     const level1Members = l1Referrals.length
     const level1Earnings = l1Referrals.reduce((sum, ref) => sum + Number(ref.totalEarnings), 0)
 
-    // L2 referral stats
-    const l2Referrals = await prisma.referral.findMany({
-      where: { referrerId: user.id, level: 2 },
-    })
     const level2Members = l2Referrals.length
     const level2Earnings = l2Referrals.reduce((sum, ref) => sum + Number(ref.totalEarnings), 0)
-
-    // Referral history (last 30)
-    const referralTransactions = await prisma.transaction.findMany({
-      where: { userId: user.id, type: 'referral', status: 'completed' },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    })
 
     const referralHistory = referralTransactions.map((tx) => {
       const parsedMeta = referralMetaSchema.safeParse(tx.metadata)

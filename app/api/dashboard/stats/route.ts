@@ -19,31 +19,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Get total ROI income
-    const roiAgg = await prisma.transaction.aggregate({
-      where: { userId: user.id, type: 'roi', status: 'completed' },
-      _sum: { amount: true },
-    })
+    // Monthly earnings date range
+    const sevenMonthsAgo = new Date()
+    sevenMonthsAgo.setMonth(sevenMonthsAgo.getMonth() - 6)
+    sevenMonthsAgo.setDate(1)
+    sevenMonthsAgo.setHours(0, 0, 0, 0)
+
+    // Run all independent queries in parallel
+    const [roiAgg, referralAgg, teamSize, recentTransactions, monthlyTransactions, withdrawalInfo] =
+      await Promise.all([
+        prisma.transaction.aggregate({
+          where: { userId: user.id, type: 'roi', status: 'completed' },
+          _sum: { amount: true },
+        }),
+        prisma.transaction.aggregate({
+          where: { userId: user.id, type: 'referral', status: 'completed' },
+          _sum: { amount: true },
+        }),
+        prisma.referral.count({
+          where: { referrerId: user.id },
+        }),
+        prisma.transaction.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }),
+        prisma.transaction.findMany({
+          where: {
+            userId: user.id,
+            status: 'completed',
+            type: { in: ['roi', 'referral'] },
+            createdAt: { gte: sevenMonthsAgo },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        computeWithdrawalInfo(prisma, user.id),
+      ])
+
     const totalRoiIncome = Number(roiAgg._sum.amount ?? 0)
-
-    // Get total referral income
-    const referralAgg = await prisma.transaction.aggregate({
-      where: { userId: user.id, type: 'referral', status: 'completed' },
-      _sum: { amount: true },
-    })
     const totalReferralIncome = Number(referralAgg._sum.amount ?? 0)
-
-    // Get team size
-    const teamSize = await prisma.referral.count({
-      where: { referrerId: user.id },
-    })
-
-    // Get recent activities (last 10 transactions)
-    const recentTransactions = await prisma.transaction.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    })
 
     const recentActivities = recentTransactions.map((tx) => ({
       id: tx.id,
@@ -52,22 +66,6 @@ export async function GET(request: NextRequest) {
       status: tx.status,
       createdAt: tx.createdAt.toISOString(),
     }))
-
-    // Monthly earnings (last 7 months)
-    const sevenMonthsAgo = new Date()
-    sevenMonthsAgo.setMonth(sevenMonthsAgo.getMonth() - 6)
-    sevenMonthsAgo.setDate(1)
-    sevenMonthsAgo.setHours(0, 0, 0, 0)
-
-    const monthlyTransactions = await prisma.transaction.findMany({
-      where: {
-        userId: user.id,
-        status: 'completed',
-        type: { in: ['roi', 'referral'] },
-        createdAt: { gte: sevenMonthsAgo },
-      },
-      orderBy: { createdAt: 'asc' },
-    })
 
     const monthlyMap: Record<string, { roi: number; referral: number }> = {}
     for (const tx of monthlyTransactions) {
@@ -88,39 +86,49 @@ export async function GET(request: NextRequest) {
       referral: parseFloat(data.referral.toFixed(8)),
     }))
 
-    // Balance history (last 7 days)
-    const balanceHistory: { day: string; balance: number }[] = []
+    // Balance history (last 7 days) — 2 bulk queries instead of 14 sequential
     const now = new Date()
+    const sevenDaysAgo = new Date(now)
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+    sevenDaysAgo.setHours(0, 0, 0, 0)
+
+    const [allCompletedTx, allWithdrawTx] = await Promise.all([
+      prisma.transaction.findMany({
+        where: {
+          userId: user.id,
+          status: 'completed',
+          createdAt: { lte: now },
+        },
+        select: { amount: true, createdAt: true, type: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      prisma.transaction.findMany({
+        where: {
+          userId: user.id,
+          status: 'completed',
+          type: 'withdraw',
+          createdAt: { lte: now },
+        },
+        select: { amount: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ])
+
+    const balanceHistory: { day: string; balance: number }[] = []
     for (let i = 6; i >= 0; i--) {
       const date = new Date(now)
       date.setDate(date.getDate() - i)
       const endOfDate = new Date(date)
       endOfDate.setHours(23, 59, 59, 999)
 
-      // Sum all completed transactions up to end of this day
-      const txSum = await prisma.transaction.aggregate({
-        where: {
-          userId: user.id,
-          status: 'completed',
-          createdAt: { lte: endOfDate },
-        },
-        _sum: { amount: true },
-      })
+      const totalIn = allCompletedTx
+        .filter((tx) => tx.createdAt <= endOfDate)
+        .reduce((sum, tx) => sum + Number(tx.amount), 0)
 
-      // For withdrawals, they reduce balance so we need to handle sign
-      const withdrawSum = await prisma.transaction.aggregate({
-        where: {
-          userId: user.id,
-          status: 'completed',
-          type: 'withdraw',
-          createdAt: { lte: endOfDate },
-        },
-        _sum: { amount: true },
-      })
+      const totalWithdraw = allWithdrawTx
+        .filter((tx) => tx.createdAt <= endOfDate)
+        .reduce((sum, tx) => sum + Number(tx.amount), 0)
 
-      const totalIn = Number(txSum._sum.amount ?? 0)
-      const totalWithdraw = Number(withdrawSum._sum.amount ?? 0)
-      // Withdrawals are stored as positive amounts but reduce balance, so subtract twice
       const balance = totalIn - 2 * totalWithdraw
 
       balanceHistory.push({
@@ -128,9 +136,6 @@ export async function GET(request: NextRequest) {
         balance: parseFloat(balance.toFixed(8)),
       })
     }
-
-    // Compute withdrawal breakdown
-    const withdrawalInfo = await computeWithdrawalInfo(prisma, user.id)
 
     // Portfolio distribution
     const totalInvested = Number(user.profile.totalInvested)

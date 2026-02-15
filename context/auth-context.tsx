@@ -148,13 +148,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUserData = syncUserToDatabase
 
   const privyUserId = privyUser?.id
+  const linkedAccountsCount = privyUser?.linkedAccounts?.length ?? 0
   React.useEffect(() => {
     if (ready && authenticated && privyUserId) {
       syncRef.current()
     } else if (ready && !authenticated) {
       setIsLoading(false)
     }
-  }, [ready, authenticated, privyUserId])
+  }, [ready, authenticated, privyUserId, linkedAccountsCount])
 
   // Update profile
   const updateProfile = React.useCallback(

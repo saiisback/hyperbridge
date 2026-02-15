@@ -54,7 +54,7 @@ export default function DashboardLayout({
       <AppSidebar />
       <SidebarInset className="bg-black rounded-xl m-2 ml-0 overflow-hidden border border-white/10 max-h-[calc(100vh-1rem)] flex flex-col">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           {children}
         </main>
       </SidebarInset>

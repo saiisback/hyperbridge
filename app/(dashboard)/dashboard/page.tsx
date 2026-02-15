@@ -59,7 +59,7 @@ export default function DashboardPage() {
   const portfolioData = useMemo(() => stats?.portfolioData ?? [], [stats])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       {/* Welcome Section */}
       <div className="space-y-2">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
@@ -92,7 +92,7 @@ export default function DashboardPage() {
               {loading ? (
                 <Skeleton className="h-8 w-32 bg-white/10" />
               ) : (
-                <div className="text-2xl font-bold text-white">{stat.value}</div>
+                <div className="text-xl sm:text-2xl font-bold text-white truncate">{stat.value}</div>
               )}
             </CardContent>
           </Card>

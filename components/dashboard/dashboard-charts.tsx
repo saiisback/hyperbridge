@@ -34,7 +34,7 @@ export function BalanceTrendChart({ data }: BalanceTrendChartProps) {
       <CardContent>
         {data.length > 0 ? (
           <ChartContainer config={balanceConfig} className="h-[200px] w-full">
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
               <defs>
                 <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#f97316" stopOpacity={0.5} />
@@ -42,8 +42,8 @@ export function BalanceTrendChart({ data }: BalanceTrendChartProps) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-              <XAxis dataKey="day" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${formatINR(value)}`} />
+              <XAxis dataKey="day" stroke="rgba(255,255,255,0.5)" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="rgba(255,255,255,0.5)" fontSize={11} tickLine={false} axisLine={false} width={45} tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Area
                 type="monotone"
@@ -84,10 +84,10 @@ export function EarningsChart({ data }: EarningsChartProps) {
         {data.length > 0 ? (
           <>
             <ChartContainer config={earningsConfig} className="h-[200px] w-full">
-              <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <BarChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="rgba(255,255,255,0.5)" fontSize={12} tickLine={false} axisLine={false} />
+                <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="rgba(255,255,255,0.5)" fontSize={11} tickLine={false} axisLine={false} width={45} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="roi" fill="#f97316" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="referral" fill="#3b82f6" radius={[4, 4, 0, 0]} />

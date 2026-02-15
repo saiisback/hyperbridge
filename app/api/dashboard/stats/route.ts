@@ -19,23 +19,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Monthly earnings date range
-    const sevenMonthsAgo = new Date()
-    sevenMonthsAgo.setMonth(sevenMonthsAgo.getMonth() - 6)
-    sevenMonthsAgo.setDate(1)
-    sevenMonthsAgo.setHours(0, 0, 0, 0)
+    const now = new Date()
 
-    // Run all independent queries in parallel
-    const [roiAgg, referralAgg, teamSize, recentTransactions, monthlyTransactions, withdrawalInfo] =
+    // Run all independent queries in parallel (consolidated from 8+ queries to 4)
+    const [teamSize, recentTransactions, allCompletedTx, withdrawalInfo] =
       await Promise.all([
-        prisma.transaction.aggregate({
-          where: { userId: user.id, type: 'roi', status: 'completed' },
-          _sum: { amount: true },
-        }),
-        prisma.transaction.aggregate({
-          where: { userId: user.id, type: 'referral', status: 'completed' },
-          _sum: { amount: true },
-        }),
         prisma.referral.count({
           where: { referrerId: user.id },
         }),
@@ -48,16 +36,12 @@ export async function GET(request: NextRequest) {
           where: {
             userId: user.id,
             status: 'completed',
-            type: { in: ['roi', 'referral'] },
-            createdAt: { gte: sevenMonthsAgo },
           },
+          select: { amount: true, createdAt: true, type: true },
           orderBy: { createdAt: 'asc' },
         }),
-        computeWithdrawalInfo(prisma, user.id),
+        computeWithdrawalInfo(prisma, user.id, user.profile),
       ])
-
-    const totalRoiIncome = Number(roiAgg._sum.amount ?? 0)
-    const totalReferralIncome = Number(referralAgg._sum.amount ?? 0)
 
     const recentActivities = recentTransactions.map((tx) => ({
       id: tx.id,
@@ -67,17 +51,61 @@ export async function GET(request: NextRequest) {
       createdAt: tx.createdAt.toISOString(),
     }))
 
+    // Single pass over allCompletedTx: derive income totals, monthly earnings, and balance history
+    const sevenMonthsAgo = new Date()
+    sevenMonthsAgo.setMonth(sevenMonthsAgo.getMonth() - 6)
+    sevenMonthsAgo.setDate(1)
+    sevenMonthsAgo.setHours(0, 0, 0, 0)
+
+    const dayBoundaries: Date[] = []
+    const balanceHistory: { day: string; balance: number }[] = []
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(now)
+      date.setDate(date.getDate() - i)
+      const endOfDate = new Date(date)
+      endOfDate.setHours(23, 59, 59, 999)
+      dayBoundaries.push(endOfDate)
+      balanceHistory.push({
+        day: date.toLocaleString('en-US', { weekday: 'short' }),
+        balance: 0,
+      })
+    }
+
+    let totalRoiIncome = 0
+    let totalReferralIncome = 0
     const monthlyMap: Record<string, { roi: number; referral: number }> = {}
-    for (const tx of monthlyTransactions) {
-      const monthKey = tx.createdAt.toLocaleString('en-US', { month: 'short' })
-      if (!monthlyMap[monthKey]) {
-        monthlyMap[monthKey] = { roi: 0, referral: 0 }
+    let runningBalance = 0
+    let dayIdx = 0
+
+    for (const tx of allCompletedTx) {
+      const amount = Number(tx.amount)
+
+      // Snapshot balance for any day boundaries this transaction has passed
+      while (dayIdx < dayBoundaries.length && tx.createdAt > dayBoundaries[dayIdx]) {
+        balanceHistory[dayIdx].balance = parseFloat(runningBalance.toFixed(8))
+        dayIdx++
       }
-      if (tx.type === 'roi') {
-        monthlyMap[monthKey].roi += Number(tx.amount)
-      } else if (tx.type === 'referral') {
-        monthlyMap[monthKey].referral += Number(tx.amount)
+
+      // Update running balance (withdrawals subtract, everything else adds)
+      runningBalance += tx.type === 'withdraw' ? -amount : amount
+
+      // Aggregate income totals
+      if (tx.type === 'roi') totalRoiIncome += amount
+      else if (tx.type === 'referral') totalReferralIncome += amount
+
+      // Monthly earnings (last 7 months, roi/referral only)
+      if (tx.createdAt >= sevenMonthsAgo && (tx.type === 'roi' || tx.type === 'referral')) {
+        const monthKey = tx.createdAt.toLocaleString('en-US', { month: 'short' })
+        if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { roi: 0, referral: 0 }
+        if (tx.type === 'roi') monthlyMap[monthKey].roi += amount
+        else monthlyMap[monthKey].referral += amount
       }
+    }
+
+    // Fill remaining day boundaries after all transactions
+    while (dayIdx < dayBoundaries.length) {
+      balanceHistory[dayIdx].balance = parseFloat(runningBalance.toFixed(8))
+      dayIdx++
     }
 
     const monthlyEarnings = Object.entries(monthlyMap).map(([month, data]) => ({
@@ -85,57 +113,6 @@ export async function GET(request: NextRequest) {
       roi: parseFloat(data.roi.toFixed(8)),
       referral: parseFloat(data.referral.toFixed(8)),
     }))
-
-    // Balance history (last 7 days) — 2 bulk queries instead of 14 sequential
-    const now = new Date()
-    const sevenDaysAgo = new Date(now)
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-    sevenDaysAgo.setHours(0, 0, 0, 0)
-
-    const [allCompletedTx, allWithdrawTx] = await Promise.all([
-      prisma.transaction.findMany({
-        where: {
-          userId: user.id,
-          status: 'completed',
-          createdAt: { lte: now },
-        },
-        select: { amount: true, createdAt: true, type: true },
-        orderBy: { createdAt: 'asc' },
-      }),
-      prisma.transaction.findMany({
-        where: {
-          userId: user.id,
-          status: 'completed',
-          type: 'withdraw',
-          createdAt: { lte: now },
-        },
-        select: { amount: true, createdAt: true },
-        orderBy: { createdAt: 'asc' },
-      }),
-    ])
-
-    const balanceHistory: { day: string; balance: number }[] = []
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - i)
-      const endOfDate = new Date(date)
-      endOfDate.setHours(23, 59, 59, 999)
-
-      const totalIn = allCompletedTx
-        .filter((tx) => tx.createdAt <= endOfDate)
-        .reduce((sum, tx) => sum + Number(tx.amount), 0)
-
-      const totalWithdraw = allWithdrawTx
-        .filter((tx) => tx.createdAt <= endOfDate)
-        .reduce((sum, tx) => sum + Number(tx.amount), 0)
-
-      const balance = totalIn - 2 * totalWithdraw
-
-      balanceHistory.push({
-        day: date.toLocaleString('en-US', { weekday: 'short' }),
-        balance: parseFloat(balance.toFixed(8)),
-      })
-    }
 
     // Portfolio distribution
     const totalInvested = Number(user.profile.totalInvested)

@@ -9,15 +9,21 @@ const LOCK_DURATION_MONTHS = 4
  */
 export async function computeWithdrawalInfo(
   tx: Prisma.TransactionClient,
-  userId: string
+  userId: string,
+  existingProfile?: { roiBalance: Prisma.Decimal | number } | null
 ) {
   const now = new Date()
 
-  // Read profile — caller must use Serializable isolation to prevent concurrent reads
-  const profile = await tx.profile.findUniqueOrThrow({
-    where: { userId },
-  })
-  const roiBalance = Number(profile.roiBalance)
+  // Skip profile fetch if caller already has it (e.g. stats route)
+  let roiBalance: number
+  if (existingProfile) {
+    roiBalance = Number(existingProfile.roiBalance)
+  } else {
+    const profile = await tx.profile.findUniqueOrThrow({
+      where: { userId },
+    })
+    roiBalance = Number(profile.roiBalance)
+  }
 
   // Get all completed deposit transactions
   const deposits = await tx.transaction.findMany({

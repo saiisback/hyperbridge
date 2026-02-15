@@ -6,14 +6,14 @@ import { Wallet, Chrome } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 
 export default function LoginPage() {
-  const { isAuthenticated, isLoading, isReady, login } = useAuth()
+  const { isAuthenticated, isLoading, isReady, login, user } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
     if (isReady && isAuthenticated) {
-      router.push('/dashboard')
+      router.push(user.onboardingCompleted ? '/dashboard' : '/onboarding')
     }
-  }, [isReady, isAuthenticated, router])
+  }, [isReady, isAuthenticated, user.onboardingCompleted, router])
 
   if (!isReady || isLoading) {
     return (

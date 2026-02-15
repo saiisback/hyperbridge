@@ -6,6 +6,7 @@ import { z } from 'zod'
 const updateProfileSchema = z.object({
   name: z.string().max(100, 'Name must be 100 characters or less').optional(),
   email: z.string().email('Invalid email format').optional(),
+  onboardingCompleted: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, email } = parsed.data
+    const { name, email, onboardingCompleted } = parsed.data
 
     const user = await prisma.user.findUnique({
       where: { privyId },
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       data: {
         ...(name !== undefined && { name }),
         ...(email !== undefined && { email }),
+        ...(onboardingCompleted !== undefined && { onboardingCompleted }),
       },
     })
 

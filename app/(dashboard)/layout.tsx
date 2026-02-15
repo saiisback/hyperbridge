@@ -12,7 +12,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isAuthenticated, isLoading, isReady } = useAuth()
+  const { isAuthenticated, isLoading, isReady, user } = useAuth()
   const router = useRouter()
   const wasAuthenticated = useRef(false)
 
@@ -27,7 +27,12 @@ export default function DashboardLayout({
     if (isReady && !isLoading && !isAuthenticated && !wasAuthenticated.current) {
       router.push('/login')
     }
-  }, [isReady, isLoading, isAuthenticated, router])
+
+    // Redirect to onboarding if user hasn't completed it
+    if (isReady && !isLoading && isAuthenticated && !user.onboardingCompleted) {
+      router.push('/onboarding')
+    }
+  }, [isReady, isLoading, isAuthenticated, user.onboardingCompleted, router])
 
   if (!isReady || isLoading) {
     return (

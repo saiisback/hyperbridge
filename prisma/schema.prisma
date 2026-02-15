@@ -21,6 +21,7 @@ model User {
   isActive      Boolean   @default(true) @map("is_active")
   kycVerified   Boolean   @default(false) @map("kyc_verified")
   role          Role      @default(user)
+  onboardingCompleted Boolean @default(false) @map("onboarding_completed")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamptz

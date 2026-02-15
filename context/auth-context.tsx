@@ -158,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Update profile
   const updateProfile = React.useCallback(
-    async (data: { name?: string; email?: string }) => {
+    async (data: { name?: string; email?: string; onboardingCompleted?: boolean }) => {
       if (!dbUser || !privyUser) return
 
       try {
@@ -263,6 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isActive: dbUser?.isActive ?? true,
       role: dbUser?.role || 'user',
       isAdmin: dbUser?.role === 'admin',
+      onboardingCompleted: dbUser?.onboardingCompleted ?? false,
       isAuthenticated: authenticated,
       isLoading,
       authMethod,

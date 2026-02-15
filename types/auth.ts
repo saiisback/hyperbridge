@@ -29,6 +29,9 @@ export interface AuthUser {
   role: 'user' | 'admin'
   isAdmin: boolean
 
+  // Onboarding
+  onboardingCompleted: boolean
+
   // Auth state
   isAuthenticated: boolean
   isLoading: boolean
@@ -92,7 +95,7 @@ export interface AuthActionsContextType {
   linkTwitter: () => void
   linkDiscord: () => void
   unlinkAccount: (account: LinkedAccountWithMetadata) => Promise<void>
-  updateProfile: (data: { name?: string; email?: string }) => Promise<void>
+  updateProfile: (data: { name?: string; email?: string; onboardingCompleted?: boolean }) => Promise<void>
   setPrimaryWallet: (walletAddress: string) => Promise<void>
   refreshUser: () => Promise<void>
   setProfileData: (profile: Profile | null) => void

@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { ArrowDownToLine, ArrowUpFromLine, History, Landmark } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/auth-context'
-import { authFetch } from '@/lib/api'
 import { formatINR } from '@/lib/utils'
 import { useCountdown } from '@/hooks/use-countdown'
+import { useDashboardStats, useWalletTransactions, useWithdrawWindow } from '@/hooks/use-queries'
 import { BalanceCards } from '@/components/wallet/balance-cards'
 import { TokenSelector } from '@/components/wallet/token-selector'
 import { DepositTab } from '@/components/wallet/deposit-tab'
@@ -15,105 +16,41 @@ import { WithdrawTab } from '@/components/wallet/withdraw-tab'
 import { TransactionHistory } from '@/components/wallet/transaction-history'
 import { WithdrawPrincipalTab } from '@/components/wallet/withdraw-principal-tab'
 import type { TokenKey } from '@/components/wallet/token-selector'
-import type { Transaction } from '@/components/wallet/transaction-history'
-
-interface BalanceInfo {
-  roiBalance: number
-  lockedPrincipal: number
-  unlockedPrincipal: number
-  availableWithdrawal: number
-}
 
 export default function WalletPage() {
-  const { user, getAccessToken } = useAuth()
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false)
-  const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
-  const [isLoadingBalance, setIsLoadingBalance] = useState(true)
 
-  // Withdrawal window state
-  const [withdrawWindowData, setWithdrawWindowData] = useState<{
-    isOpen: boolean
-    opensAt: string | null
-    closesAt: string | null
-  }>({ isOpen: true, opensAt: null, closesAt: null })
+  // Query hooks
+  const { data: statsData, isLoading: isLoadingBalance } = useDashboardStats()
+  const { data: transactions = [], isLoading: isLoadingTransactions } = useWalletTransactions()
+  const { data: withdrawWindowData } = useWithdrawWindow()
 
-  const { countdown, isOpen: withdrawWindowOpen } = useCountdown(withdrawWindowData)
+  const balanceInfo = statsData
+    ? {
+        roiBalance: statsData.roiBalance ?? 0,
+        lockedPrincipal: statsData.lockedPrincipal ?? 0,
+        unlockedPrincipal: statsData.unlockedPrincipal ?? 0,
+        availableWithdrawal: statsData.availableWithdrawal ?? 0,
+      }
+    : null
+
+  const { countdown, isOpen: withdrawWindowOpen } = useCountdown(
+    withdrawWindowData ?? { isOpen: true, opensAt: null, closesAt: null }
+  )
 
   const availableBalance = user.profile?.availableBalance
     ? parseFloat(user.profile.availableBalance.toString())
     : 0
   const formattedBalance = formatINR(availableBalance)
 
-  // Fetch transactions
-  const fetchTransactions = useCallback(async () => {
-    if (!user.privyId) return
-    setIsLoadingTransactions(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) return
-      const response = await authFetch('/api/wallet/transactions', accessToken)
-      if (response.ok) {
-        const data = await response.json()
-        setTransactions(data.transactions || [])
-      }
-    } catch (error) {
-      console.error('Failed to fetch transactions:', error)
-    } finally {
-      setIsLoadingTransactions(false)
-    }
-  }, [user.privyId, getAccessToken])
-
-  // Fetch balance breakdown
-  const fetchBalanceInfo = useCallback(async () => {
-    if (!user.privyId) return
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) return
-      const res = await authFetch('/api/dashboard/stats', accessToken)
-      if (res.ok) {
-        const data = await res.json()
-        setBalanceInfo({
-          roiBalance: data.roiBalance ?? 0,
-          lockedPrincipal: data.lockedPrincipal ?? 0,
-          unlockedPrincipal: data.unlockedPrincipal ?? 0,
-          availableWithdrawal: data.availableWithdrawal ?? 0,
-        })
-      }
-    } catch (error) {
-      console.error('Failed to fetch balance info:', error)
-    } finally {
-      setIsLoadingBalance(false)
-    }
-  }, [user.privyId, getAccessToken])
-
-  // Fetch all wallet data in parallel
-  useEffect(() => {
-    const fetchAll = async () => {
-      await Promise.all([
-        fetchTransactions(),
-        fetchBalanceInfo(),
-        fetch('/api/withdraw-window')
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => {
-            if (data) {
-              setWithdrawWindowData({
-                isOpen: data.isOpen,
-                opensAt: data.opensAt,
-                closesAt: data.closesAt,
-              })
-            }
-          })
-          .catch((error) => console.error('Failed to fetch withdrawal window:', error)),
-      ])
-    }
-    fetchAll()
-  }, [fetchTransactions, fetchBalanceInfo])
-
   const handleDepositWithdrawSuccess = async () => {
-    await Promise.all([fetchBalanceInfo(), fetchTransactions()])
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+      queryClient.invalidateQueries({ queryKey: ['wallet-transactions'] }),
+    ])
   }
 
   return (
@@ -181,7 +118,7 @@ export default function WalletPage() {
             balanceInfo={balanceInfo}
             withdrawWindowOpen={withdrawWindowOpen}
             countdown={countdown}
-            hasWindowData={!!(withdrawWindowData.opensAt || withdrawWindowData.closesAt)}
+            hasWindowData={!!(withdrawWindowData?.opensAt || withdrawWindowData?.closesAt)}
             onSuccess={handleDepositWithdrawSuccess}
           />
         </TabsContent>
@@ -192,7 +129,7 @@ export default function WalletPage() {
             balanceInfo={balanceInfo}
             withdrawWindowOpen={withdrawWindowOpen}
             countdown={countdown}
-            hasWindowData={!!(withdrawWindowData.opensAt || withdrawWindowData.closesAt)}
+            hasWindowData={!!(withdrawWindowData?.opensAt || withdrawWindowData?.closesAt)}
             onSuccess={handleDepositWithdrawSuccess}
           />
         </TabsContent>

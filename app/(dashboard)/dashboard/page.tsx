@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Wallet, TrendingUp, IndianRupee, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/context/auth-context'
 import { cn, formatINR, timeAgo, formatActivityDescription } from '@/lib/utils'
-import { authFetch } from '@/lib/api'
+import { useDashboardStats } from '@/hooks/use-queries'
 
 // Lazy load chart components (recharts is ~200KB)
 const BalanceTrendChart = dynamic(
@@ -60,31 +60,8 @@ const statCardMeta = [
 ]
 
 export default function DashboardPage() {
-  const { user, getAccessToken } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!user.privyId) return
-
-    const fetchStats = async () => {
-      try {
-        const accessToken = await getAccessToken()
-        if (!accessToken) return
-        const res = await authFetch('/api/dashboard/stats', accessToken)
-        if (res.ok) {
-          const data = await res.json()
-          setStats(data)
-        }
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchStats()
-  }, [user.privyId, getAccessToken])
+  const { user } = useAuth()
+  const { data: stats, isLoading: loading } = useDashboardStats()
 
   const statCards = useMemo(() =>
     statCardMeta.map((meta) => ({

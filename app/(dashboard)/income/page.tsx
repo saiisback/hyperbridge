@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { TrendingUp, Copy, Check, Calendar, IndianRupee, Users } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,9 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useAuth } from '@/context/auth-context'
 import { formatINR } from '@/lib/utils'
-import { authFetch } from '@/lib/api'
+import { useIncomeData } from '@/hooks/use-queries'
 
 interface IncomeData {
   totalRoiIncome: number
@@ -39,31 +38,8 @@ function formatAmount(value: number): string {
 }
 
 export default function IncomePage() {
-  const { user, getAccessToken } = useAuth()
+  const { data, isLoading: loading } = useIncomeData()
   const [copied, setCopied] = useState(false)
-  const [data, setData] = useState<IncomeData | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!user.privyId) return
-
-    const fetchIncome = async () => {
-      try {
-        const accessToken = await getAccessToken()
-        if (!accessToken) return
-        const res = await authFetch('/api/income', accessToken)
-        if (res.ok) {
-          setData(await res.json())
-        }
-      } catch (error) {
-        console.error('Failed to fetch income data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchIncome()
-  }, [user.privyId, getAccessToken])
 
   const referralLink = data?.referralCode
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/ref/${data.referralCode}`

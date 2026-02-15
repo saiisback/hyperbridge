@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Clock, Save, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
+import { useAdminWithdrawWindowConfig } from '@/hooks/use-queries'
 
 function toLocalDatetimeString(iso: string | null): string {
   if (!iso) return ''
@@ -23,33 +25,23 @@ function toLocalDatetimeString(iso: string | null): string {
 export default function AdminWithdrawWindowPage() {
   const { getAccessToken } = useAuth()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
+
+  const { data: windowData, isLoading } = useAdminWithdrawWindowConfig()
 
   const [opensAt, setOpensAt] = useState('')
   const [closesAt, setClosesAt] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [formInitialized, setFormInitialized] = useState(false)
 
-  const fetchWindow = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) return
-      const res = await adminFetch('/api/admin/withdraw-window', accessToken)
-      if (res.ok) {
-        const data = await res.json()
-        setOpensAt(toLocalDatetimeString(data.opensAt))
-        setClosesAt(toLocalDatetimeString(data.closesAt))
-      }
-    } catch (error) {
-      console.error('Failed to fetch withdrawal window:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [getAccessToken])
-
+  // Sync fetched data to form state once on initial load
   useEffect(() => {
-    fetchWindow()
-  }, [fetchWindow])
+    if (windowData && !formInitialized) {
+      setOpensAt(toLocalDatetimeString(windowData.opensAt))
+      setClosesAt(toLocalDatetimeString(windowData.closesAt))
+      setFormInitialized(true)
+    }
+  }, [windowData, formInitialized])
 
   const handleSave = async () => {
     if (opensAt && closesAt && new Date(opensAt) >= new Date(closesAt)) {
@@ -76,6 +68,7 @@ export default function AdminWithdrawWindowPage() {
         const data = await res.json()
         setOpensAt(toLocalDatetimeString(data.opensAt))
         setClosesAt(toLocalDatetimeString(data.closesAt))
+        queryClient.invalidateQueries({ queryKey: ['admin-withdraw-window'] })
         toast({ title: 'Saved', description: 'Withdrawal window updated successfully.' })
       } else {
         const data = await res.json()
@@ -100,6 +93,7 @@ export default function AdminWithdrawWindowPage() {
       if (res.ok) {
         setOpensAt('')
         setClosesAt('')
+        queryClient.invalidateQueries({ queryKey: ['admin-withdraw-window'] })
         toast({ title: 'Cleared', description: 'Withdrawal window cleared. Withdrawals are now always open.' })
       } else {
         const data = await res.json()

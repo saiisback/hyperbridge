@@ -53,10 +53,10 @@ export default function DashboardPage() {
     [stats]
   )
 
-  const recentActivities = stats?.recentActivities ?? []
-  const monthlyEarnings = stats?.monthlyEarnings ?? []
-  const balanceHistory = stats?.balanceHistory ?? []
-  const portfolioData = stats?.portfolioData ?? []
+  const recentActivities = useMemo(() => stats?.recentActivities ?? [], [stats])
+  const monthlyEarnings = useMemo(() => stats?.monthlyEarnings ?? [], [stats])
+  const balanceHistory = useMemo(() => stats?.balanceHistory ?? [], [stats])
+  const portfolioData = useMemo(() => stats?.portfolioData ?? [], [stats])
 
   return (
     <div className="space-y-6">

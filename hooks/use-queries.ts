@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/context/auth-context'
 import { authFetch } from '@/lib/api'
+import { adminFetch } from '@/lib/admin-api'
 
 export interface DashboardStatsResponse {
   totalBalance: number
@@ -103,5 +104,104 @@ export function useWithdrawWindow() {
       if (!res.ok) throw new Error('Failed to fetch withdraw window')
       return res.json()
     },
+  })
+}
+
+// ── Admin hooks ──
+
+export interface AdminStats {
+  totalUsers: number
+  newUsersLast30d: number
+  totalDeposits: string
+  totalDepositCount: number
+  totalBalance: string
+  pendingWithdrawalCount: number
+  pendingWithdrawalSum: string
+}
+
+export interface AdminRecentUser {
+  id: string
+  name: string | null
+  email: string | null
+  createdAt: string
+  totalBalance: string
+}
+
+export interface AdminRecentTransaction {
+  id: string
+  type: string
+  amount: string
+  amountInr: string | null
+  status: string
+  createdAt: string
+  user: { name: string | null; email: string | null }
+}
+
+export function useAdminStats() {
+  const { user, getAccessToken } = useAuth()
+
+  return useQuery<AdminStats>({
+    queryKey: ['admin-stats'],
+    queryFn: async () => {
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('No access token')
+      const res = await adminFetch('/api/admin/stats', accessToken)
+      if (!res.ok) throw new Error('Failed to fetch admin stats')
+      return res.json()
+    },
+    enabled: !!user.privyId,
+  })
+}
+
+export function useAdminRecentUsers() {
+  const { user, getAccessToken } = useAuth()
+
+  return useQuery<{ users: AdminRecentUser[] }>({
+    queryKey: ['admin-recent-users'],
+    queryFn: async () => {
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('No access token')
+      const res = await adminFetch('/api/admin/users?limit=5', accessToken)
+      if (!res.ok) throw new Error('Failed to fetch recent users')
+      return res.json()
+    },
+    enabled: !!user.privyId,
+  })
+}
+
+export function useAdminRecentTransactions() {
+  const { user, getAccessToken } = useAuth()
+
+  return useQuery<{ transactions: AdminRecentTransaction[] }>({
+    queryKey: ['admin-recent-transactions'],
+    queryFn: async () => {
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('No access token')
+      const res = await adminFetch('/api/admin/transactions?limit=5', accessToken)
+      if (!res.ok) throw new Error('Failed to fetch recent transactions')
+      return res.json()
+    },
+    enabled: !!user.privyId,
+  })
+}
+
+export interface AdminWithdrawWindowConfig {
+  opensAt: string | null
+  closesAt: string | null
+}
+
+export function useAdminWithdrawWindowConfig() {
+  const { user, getAccessToken } = useAuth()
+
+  return useQuery<AdminWithdrawWindowConfig>({
+    queryKey: ['admin-withdraw-window'],
+    queryFn: async () => {
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('No access token')
+      const res = await adminFetch('/api/admin/withdraw-window', accessToken)
+      if (!res.ok) throw new Error('Failed to fetch withdraw window config')
+      return res.json()
+    },
+    enabled: !!user.privyId,
   })
 }

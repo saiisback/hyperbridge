@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useAuth } from '@/context/auth-context'
 import { adminFetch } from '@/lib/admin-api'
 
@@ -25,12 +26,7 @@ export function useAdminData<T>(
   options?: UseAdminDataOptions
 ): UseAdminDataReturn<T> {
   const { user, getAccessToken } = useAuth()
-  const [data, setData] = useState<T[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isFetching, setIsFetching] = useState(false)
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
 
   const extraParamsKey = options?.extraParams
     ? Object.entries(options.extraParams)
@@ -39,52 +35,42 @@ export function useAdminData<T>(
         .join('&')
     : ''
 
-  // Track previous extraParamsKey to detect filter changes
+  // Reset page to 1 when filters change
   const prevExtraParamsKeyRef = useRef(extraParamsKey)
-
-  const fetchData = useCallback(async () => {
-    if (!user.privyId) return
-
-    // If filters changed and we're not on page 1, reset page and skip this fetch
-    // The page change will trigger a new fetch with page=1
-    const filtersChanged = prevExtraParamsKeyRef.current !== extraParamsKey
-    prevExtraParamsKeyRef.current = extraParamsKey
-
-    if (filtersChanged && page !== 1) {
+  useEffect(() => {
+    if (prevExtraParamsKeyRef.current !== extraParamsKey) {
+      prevExtraParamsKeyRef.current = extraParamsKey
       setPage(1)
-      return
     }
+  }, [extraParamsKey])
 
-    setIsFetching(true)
-    try {
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['admin', endpoint, page, extraParamsKey],
+    queryFn: async () => {
       const accessToken = await getAccessToken()
-      if (!accessToken) return
+      if (!accessToken) throw new Error('No access token')
       const params = new URLSearchParams({ page: page.toString(), limit: '20' })
       if (options?.extraParams) {
         for (const [key, value] of Object.entries(options.extraParams)) {
           if (value) params.set(key, value)
         }
       }
-
       const res = await adminFetch(`${endpoint}?${params}`, accessToken)
-      if (res.ok) {
-        const result = await res.json()
-        setData(result[dataKey])
-        setTotalPages(result.totalPages)
-        setTotal(result.total)
-      }
-    } catch (error) {
-      console.error(`Failed to fetch ${dataKey}:`, error)
-    } finally {
-      setIsFetching(false)
-      setIsLoading(false)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.privyId, page, extraParamsKey, getAccessToken, endpoint, dataKey])
+      if (!res.ok) throw new Error(`Failed to fetch ${dataKey}`)
+      return res.json()
+    },
+    enabled: !!user.privyId,
+    placeholderData: keepPreviousData,
+  })
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
-
-  return { data, isLoading, isFetching, page, totalPages, total, setPage, refetch: fetchData }
+  return {
+    data: data?.[dataKey] ?? [],
+    isLoading,
+    isFetching,
+    page,
+    totalPages: data?.totalPages ?? 1,
+    total: data?.total ?? 0,
+    setPage,
+    refetch,
+  }
 }

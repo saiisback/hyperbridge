@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { Users, ArrowDownToLine, Wallet, ArrowUpFromLine } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,37 +13,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { useAuth } from '@/context/auth-context'
-import { adminFetch } from '@/lib/admin-api'
 import { formatINR } from '@/lib/utils'
-
-interface Stats {
-  totalUsers: number
-  newUsersLast30d: number
-  totalDeposits: string
-  totalDepositCount: number
-  totalBalance: string
-  pendingWithdrawalCount: number
-  pendingWithdrawalSum: string
-}
-
-interface RecentUser {
-  id: string
-  name: string | null
-  email: string | null
-  createdAt: string
-  totalBalance: string
-}
-
-interface RecentTransaction {
-  id: string
-  type: string
-  amount: string
-  amountInr: string | null
-  status: string
-  createdAt: string
-  user: { name: string | null; email: string | null }
-}
+import { useAdminStats, useAdminRecentUsers, useAdminRecentTransactions } from '@/hooks/use-queries'
 
 const statCardMeta = [
   { title: 'Total Users', icon: Users, color: 'blue' },
@@ -67,46 +38,15 @@ const iconColorMap: Record<string, string> = {
 }
 
 export default function AdminOverviewPage() {
-  const { user, getAccessToken } = useAuth()
-  const [stats, setStats] = useState<Stats | null>(null)
-  const [recentUsers, setRecentUsers] = useState<RecentUser[]>([])
-  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { data: stats, isLoading: statsLoading } = useAdminStats()
+  const { data: usersData, isLoading: usersLoading } = useAdminRecentUsers()
+  const { data: txData, isLoading: txLoading } = useAdminRecentTransactions()
 
-  useEffect(() => {
-    if (!user.privyId) return
+  const isLoading = statsLoading
+  const recentUsers = usersData?.users ?? []
+  const recentTransactions = txData?.transactions ?? []
 
-    async function fetchData() {
-      setIsLoading(true)
-      try {
-        const accessToken = await getAccessToken()
-        if (!accessToken) return
-        const [statsRes, usersRes, txRes] = await Promise.all([
-          adminFetch('/api/admin/stats', accessToken),
-          adminFetch('/api/admin/users?limit=5', accessToken),
-          adminFetch('/api/admin/transactions?limit=5', accessToken),
-        ])
-
-        if (statsRes.ok) setStats(await statsRes.json())
-        if (usersRes.ok) {
-          const data = await usersRes.json()
-          setRecentUsers(data.users)
-        }
-        if (txRes.ok) {
-          const data = await txRes.json()
-          setRecentTransactions(data.transactions)
-        }
-      } catch (error) {
-        console.error('Failed to fetch admin data:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [user.privyId, getAccessToken])
-
-  const statCards = [
+  const statCards = useMemo(() => [
     {
       ...statCardMeta[0],
       value: stats ? stats.totalUsers : null,
@@ -127,7 +67,7 @@ export default function AdminOverviewPage() {
       value: stats ? stats.pendingWithdrawalCount : null,
       subtitle: stats ? `₹${formatINR(parseFloat(stats.pendingWithdrawalSum))} pending` : '',
     },
-  ]
+  ], [stats])
 
   return (
     <div className="space-y-6">
@@ -169,7 +109,7 @@ export default function AdminOverviewPage() {
             <CardDescription className="text-white/50">Latest registered users</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {usersLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-4 py-2">
@@ -214,7 +154,7 @@ export default function AdminOverviewPage() {
             <CardDescription className="text-white/50">Latest activity</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {txLoading ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-4 py-2">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowDownToLine, ArrowUpFromLine, History, Landmark } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -28,14 +28,17 @@ export default function WalletPage() {
   const { data: transactions = [], isLoading: isLoadingTransactions } = useWalletTransactions()
   const { data: withdrawWindowData } = useWithdrawWindow()
 
-  const balanceInfo = statsData
-    ? {
-        roiBalance: statsData.roiBalance ?? 0,
-        lockedPrincipal: statsData.lockedPrincipal ?? 0,
-        unlockedPrincipal: statsData.unlockedPrincipal ?? 0,
-        availableWithdrawal: statsData.availableWithdrawal ?? 0,
-      }
-    : null
+  const balanceInfo = useMemo(() =>
+    statsData
+      ? {
+          roiBalance: statsData.roiBalance ?? 0,
+          lockedPrincipal: statsData.lockedPrincipal ?? 0,
+          unlockedPrincipal: statsData.unlockedPrincipal ?? 0,
+          availableWithdrawal: statsData.availableWithdrawal ?? 0,
+        }
+      : null,
+    [statsData]
+  )
 
   const { countdown, isOpen: withdrawWindowOpen } = useCountdown(
     withdrawWindowData ?? { isOpen: true, opensAt: null, closesAt: null }
@@ -46,12 +49,12 @@ export default function WalletPage() {
     : 0
   const formattedBalance = formatINR(availableBalance)
 
-  const handleDepositWithdrawSuccess = async () => {
+  const handleDepositWithdrawSuccess = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
       queryClient.invalidateQueries({ queryKey: ['wallet-transactions'] }),
     ])
-  }
+  }, [queryClient])
 
   return (
     <div className="space-y-6">

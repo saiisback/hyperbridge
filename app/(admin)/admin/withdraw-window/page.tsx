@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Loader2, Clock, Save, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -133,14 +134,6 @@ export default function AdminWithdrawWindowPage() {
 
   const status = getStatus()
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-red-500" />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
@@ -156,98 +149,117 @@ export default function AdminWithdrawWindowPage() {
                 When no window is set, withdrawals are always open.
               </CardDescription>
             </div>
-            <Badge
-              className={
-                status.variant === 'open'
-                  ? 'bg-green-500/20 text-green-500 border-green-500/50'
-                  : 'bg-red-500/20 text-red-500 border-red-500/50'
-              }
-            >
-              {status.label}
-            </Badge>
+            {isLoading ? (
+              <Skeleton className="h-5 w-20 rounded-full bg-white/10" />
+            ) : (
+              <Badge
+                className={
+                  status.variant === 'open'
+                    ? 'bg-green-500/20 text-green-500 border-green-500/50'
+                    : 'bg-red-500/20 text-red-500 border-red-500/50'
+                }
+              >
+                {status.label}
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="opensAt" className="text-white/70">
-                Opens At
-              </Label>
-              <Input
-                id="opensAt"
-                type="datetime-local"
-                value={opensAt}
-                onChange={(e) => setOpensAt(e.target.value)}
-                className="bg-white/5 border-white/10 text-white focus:border-red-500 [color-scheme:dark]"
-              />
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-16 bg-white/10" />
+                <Skeleton className="h-10 w-full bg-white/10" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-16 bg-white/10" />
+                <Skeleton className="h-10 w-full bg-white/10" />
+              </div>
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="opensAt" className="text-white/70">
+                    Opens At
+                  </Label>
+                  <Input
+                    id="opensAt"
+                    type="datetime-local"
+                    value={opensAt}
+                    onChange={(e) => setOpensAt(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white focus:border-red-500 [color-scheme:dark]"
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="closesAt" className="text-white/70">
-                Closes At
-              </Label>
-              <Input
-                id="closesAt"
-                type="datetime-local"
-                value={closesAt}
-                onChange={(e) => setClosesAt(e.target.value)}
-                className="bg-white/5 border-white/10 text-white focus:border-red-500 [color-scheme:dark]"
-              />
-            </div>
-          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="closesAt" className="text-white/70">
+                    Closes At
+                  </Label>
+                  <Input
+                    id="closesAt"
+                    type="datetime-local"
+                    value={closesAt}
+                    onChange={(e) => setClosesAt(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white focus:border-red-500 [color-scheme:dark]"
+                  />
+                </div>
+              </div>
 
-          {!opensAt && !closesAt && (
-            <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
-              <p className="text-sm text-green-400">
-                No window is set. Withdrawals are currently always open.
-              </p>
-            </div>
+              {!opensAt && !closesAt && (
+                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                  <p className="text-sm text-green-400">
+                    No window is set. Withdrawals are currently always open.
+                  </p>
+                </div>
+              )}
+
+              {(opensAt || closesAt) && (
+                <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-1">
+                  {opensAt && (
+                    <p className="text-sm text-white/70">
+                      Opens: <span className="text-white">{new Date(opensAt).toLocaleString()}</span>
+                    </p>
+                  )}
+                  {closesAt && (
+                    <p className="text-sm text-white/70">
+                      Closes: <span className="text-white">{new Date(closesAt).toLocaleString()}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Window
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={handleClear}
+                  disabled={isSaving || (!opensAt && !closesAt)}
+                  className="border-white/10 text-white/70 hover:bg-white/10"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Clear Window
+                </Button>
+              </div>
+            </>
           )}
-
-          {(opensAt || closesAt) && (
-            <div className="p-4 rounded-lg bg-white/5 border border-white/10 space-y-1">
-              {opensAt && (
-                <p className="text-sm text-white/70">
-                  Opens: <span className="text-white">{new Date(opensAt).toLocaleString()}</span>
-                </p>
-              )}
-              {closesAt && (
-                <p className="text-sm text-white/70">
-                  Closes: <span className="text-white">{new Date(closesAt).toLocaleString()}</span>
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <Button
-              onClick={handleSave}
-              disabled={isSaving}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Window
-                </>
-              )}
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={handleClear}
-              disabled={isSaving || (!opensAt && !closesAt)}
-              className="border-white/10 text-white/70 hover:bg-white/10"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear Window
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -41,6 +42,22 @@ interface Withdrawal {
   user: { name: string | null; email: string | null; primaryWallet: string | null }
 }
 
+function TableSkeletonRows({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 py-2">
+          <Skeleton className="h-4 w-24 bg-white/10" />
+          <Skeleton className="h-4 w-20 bg-white/10" />
+          <Skeleton className="h-4 w-28 bg-white/10 hidden sm:block" />
+          <Skeleton className="h-5 w-16 rounded-full bg-white/10" />
+          <Skeleton className="h-4 w-28 bg-white/10 hidden sm:block" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AdminWithdrawalsPage() {
   const { user, getAccessToken } = useAuth()
   const { toast } = useToast()
@@ -53,14 +70,10 @@ export default function AdminWithdrawalsPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
 
-  const { data: withdrawals, isLoading, page, totalPages, total, setPage, refetch } =
+  const { data: withdrawals, isLoading, isFetching, page, totalPages, total, setPage, refetch } =
     useAdminData<Withdrawal>('/api/admin/withdrawals', 'withdrawals', {
       extraParams: { status: activeTab },
     })
-
-  useEffect(() => {
-    setPage(1)
-  }, [activeTab, setPage])
 
   const handleApprove = async (id: string) => {
     if (!user.privyId) return
@@ -151,15 +164,13 @@ export default function AdminWithdrawalsPage() {
 
             <TabsContent value={activeTab}>
               {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-red-500" />
-                </div>
+                <TableSkeletonRows />
               ) : withdrawals.length === 0 ? (
                 <p className="text-white/50 text-center py-8">
                   No {activeTab} withdrawals
                 </p>
               ) : (
-                <>
+                <div className={isFetching ? 'opacity-60 transition-opacity' : ''}>
                   <div className="overflow-x-auto -mx-6 px-6">
                     <Table>
                       <TableHeader>
@@ -266,7 +277,7 @@ export default function AdminWithdrawalsPage() {
                       </div>
                     </div>
                   )}
-                </>
+                </div>
               )}
             </TabsContent>
           </Tabs>

@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Loader2, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
   TableBody,
@@ -37,6 +38,23 @@ interface Transaction {
   user: { name: string | null; email: string | null; primaryWallet: string | null }
 }
 
+function TableSkeletonRows({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 py-2">
+          <Skeleton className="h-4 w-24 bg-white/10" />
+          <Skeleton className="h-4 w-16 bg-white/10" />
+          <Skeleton className="h-4 w-20 bg-white/10" />
+          <Skeleton className="h-5 w-16 rounded-full bg-white/10" />
+          <Skeleton className="h-4 w-24 bg-white/10 hidden sm:block" />
+          <Skeleton className="h-4 w-28 bg-white/10 hidden sm:block" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AdminTransactionsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -45,14 +63,10 @@ export default function AdminTransactionsPage() {
   if (typeFilter !== 'all') extraParams.type = typeFilter
   if (statusFilter !== 'all') extraParams.status = statusFilter
 
-  const { data: transactions, isLoading, page, totalPages, total, setPage } =
+  const { data: transactions, isLoading, isFetching, page, totalPages, total, setPage } =
     useAdminData<Transaction>('/api/admin/transactions', 'transactions', {
       extraParams: Object.keys(extraParams).length > 0 ? extraParams : undefined,
     })
-
-  useEffect(() => {
-    setPage(1)
-  }, [typeFilter, statusFilter, setPage])
 
   return (
     <div className="space-y-6">
@@ -89,13 +103,11 @@ export default function AdminTransactionsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-red-500" />
-            </div>
+            <TableSkeletonRows />
           ) : transactions.length === 0 ? (
             <p className="text-white/50 text-center py-8">No transactions found</p>
           ) : (
-            <>
+            <div className={isFetching ? 'opacity-60 transition-opacity' : ''}>
               <div className="overflow-x-auto -mx-6 px-6">
                 <Table>
                   <TableHeader>
@@ -185,7 +197,7 @@ export default function AdminTransactionsPage() {
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>

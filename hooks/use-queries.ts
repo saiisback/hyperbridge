@@ -2,10 +2,54 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/context/auth-context'
 import { authFetch } from '@/lib/api'
 
+export interface DashboardStatsResponse {
+  totalBalance: number
+  availableBalance: number
+  totalInvested: number
+  totalRoiIncome: number
+  totalReferralIncome: number
+  recentActivities: {
+    id: string
+    type: string
+    amount: number
+    status: string
+    createdAt: string
+  }[]
+  monthlyEarnings: { month: string; roi: number; referral: number }[]
+  balanceHistory: { day: string; balance: number }[]
+  portfolioData: { name: string; value: number; color: string }[]
+  roiBalance: number
+  lockedPrincipal: number
+  unlockedPrincipal: number
+  availableWithdrawal: number
+}
+
+export interface IncomeResponse {
+  totalRoiIncome: number
+  todayRoi: number
+  totalInvested: number
+  dailyRoiRate: number
+  daysActive: number
+  roiHistory: { date: string; amount: number; percentage: string; status: string }[]
+  totalReferralIncome: number
+  directMembers: number
+  directEarnings: number
+  level2Members: number
+  level2Earnings: number
+  referralHistory: { date: string; from: string; amount: number; level: number; type: string }[]
+  referralCode: string | null
+}
+
+export interface WithdrawWindowResponse {
+  isOpen: boolean
+  opensAt: string | null
+  closesAt: string | null
+}
+
 export function useDashboardStats() {
   const { user, getAccessToken } = useAuth()
 
-  return useQuery({
+  return useQuery<DashboardStatsResponse>({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const accessToken = await getAccessToken()
@@ -21,7 +65,7 @@ export function useDashboardStats() {
 export function useIncomeData() {
   const { user, getAccessToken } = useAuth()
 
-  return useQuery({
+  return useQuery<IncomeResponse>({
     queryKey: ['income'],
     queryFn: async () => {
       const accessToken = await getAccessToken()
@@ -52,7 +96,7 @@ export function useWalletTransactions() {
 }
 
 export function useWithdrawWindow() {
-  return useQuery({
+  return useQuery<WithdrawWindowResponse>({
     queryKey: ['withdraw-window'],
     queryFn: async () => {
       const res = await fetch('/api/withdraw-window')

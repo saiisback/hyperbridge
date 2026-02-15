@@ -35,24 +35,6 @@ function ChartSkeleton() {
   )
 }
 
-interface DashboardStats {
-  totalBalance: number
-  availableBalance: number
-  totalInvested: number
-  totalRoiIncome: number
-  totalReferralIncome: number
-  recentActivities: {
-    id: string
-    type: string
-    amount: number
-    status: string
-    createdAt: string
-  }[]
-  monthlyEarnings: { month: string; roi: number; referral: number }[]
-  balanceHistory: { day: string; balance: number }[]
-  portfolioData: { name: string; value: number; color: string }[]
-}
-
 const statCardMeta = [
   { title: 'Total Balance', icon: Wallet, key: 'totalBalance' as const },
   { title: 'ROI Income', icon: TrendingUp, key: 'totalRoiIncome' as const },

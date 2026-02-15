@@ -17,22 +17,6 @@ import {
 import { formatINR } from '@/lib/utils'
 import { useIncomeData } from '@/hooks/use-queries'
 
-interface IncomeData {
-  totalRoiIncome: number
-  todayRoi: number
-  totalInvested: number
-  dailyRoiRate: number
-  daysActive: number
-  roiHistory: { date: string; amount: number; percentage: string; status: string }[]
-  totalReferralIncome: number
-  directMembers: number
-  directEarnings: number
-  level2Members: number
-  level2Earnings: number
-  referralHistory: { date: string; from: string; amount: number; level: number; type: string }[]
-  referralCode: string | null
-}
-
 function formatAmount(value: number): string {
   return formatINR(value)
 }

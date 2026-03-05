@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight, CheckCircle, XCircle, Wallet } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -30,16 +30,42 @@ import { adminFetch } from '@/lib/admin-api'
 import { useAdminData } from '@/hooks/use-admin-data'
 import { useToast } from '@/hooks/use-toast'
 import { formatINR, truncateAddress } from '@/lib/utils'
+import { useWallets } from '@privy-io/react-auth'
+import {
+  createWalletClient,
+  custom,
+  parseEther,
+  parseUnits,
+  encodeFunctionData,
+  erc20Abi,
+} from 'viem'
+import type { Chain } from 'viem'
+import { mainnet, polygon, base, arbitrum } from 'viem/chains'
 
 interface Withdrawal {
   id: string
   amount: string
   amountInr: string | null
+  token: string | null
   status: string
   walletAddress: string | null
   metadata: Record<string, unknown>
   createdAt: string
   user: { name: string | null; email: string | null; primaryWallet: string | null }
+}
+
+const CHAIN_MAP: Record<number, Chain> = {
+  1: mainnet,
+  137: polygon,
+  8453: base,
+  42161: arbitrum,
+}
+
+const ERC20_TOKENS: Record<string, { address: `0x${string}`; decimals: number }> = {
+  USDT: {
+    address: (process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS || '') as `0x${string}`,
+    decimals: 6,
+  },
 }
 
 function TableSkeletonRows({ rows = 5 }: { rows?: number }) {
@@ -61,6 +87,7 @@ function TableSkeletonRows({ rows = 5 }: { rows?: number }) {
 export default function AdminWithdrawalsPage() {
   const { user, getAccessToken } = useAuth()
   const { toast } = useToast()
+  const { wallets } = useWallets()
   const [activeTab, setActiveTab] = useState('pending')
 
   // Reject dialog state
@@ -69,34 +96,130 @@ export default function AdminWithdrawalsPage() {
   const [rejectReason, setRejectReason] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [approveStatus, setApproveStatus] = useState<string | null>(null)
+
+  const adminWallet = wallets.find(
+    (w) => w.walletClientType !== 'privy'
+  ) || wallets[0] || null
 
   const { data: withdrawals, isLoading, isFetching, page, totalPages, total, setPage, refetch } =
     useAdminData<Withdrawal>('/api/admin/withdrawals', 'withdrawals', {
       extraParams: { status: activeTab },
     })
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (withdrawal: Withdrawal) => {
     if (!user.privyId) return
+
+    if (!adminWallet) {
+      toast({
+        title: 'No wallet connected',
+        description: 'Please connect a wallet (e.g. MetaMask) to approve withdrawals.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!withdrawal.walletAddress) {
+      toast({ title: 'Error', description: 'No destination address on this withdrawal', variant: 'destructive' })
+      return
+    }
+
     setIsProcessing(true)
-    setApprovingId(id)
+    setApprovingId(withdrawal.id)
+    setApproveStatus('Preparing transaction...')
+
     try {
+      const token = withdrawal.token || 'USDT'
+      const meta = withdrawal.metadata
+      const netAmount = meta?.netAmount
+        ? String(meta.netAmount)
+        : (Number(withdrawal.amount) * 0.9).toFixed(6)
+      const destinationAddress = withdrawal.walletAddress as `0x${string}`
+      const chainId = (meta?.chainId as number) || 1
+      const chain = CHAIN_MAP[chainId] || mainnet
+
+      // Switch chain if needed
+      try {
+        await adminWallet.switchChain(chain.id)
+      } catch {
+        toast({ title: 'Error', description: `Please switch your wallet to ${chain.name}`, variant: 'destructive' })
+        return
+      }
+
+      const ethereumProvider = await adminWallet.getEthereumProvider()
+      const walletClient = createWalletClient({
+        chain,
+        transport: custom(ethereumProvider),
+      })
+
+      const [account] = await walletClient.getAddresses()
+      if (!account) {
+        toast({ title: 'Error', description: 'Could not get wallet address', variant: 'destructive' })
+        return
+      }
+
+      setApproveStatus('Waiting for wallet confirmation...')
+
+      let txHash: `0x${string}`
+
+      if (token === 'ETH') {
+        txHash = await walletClient.sendTransaction({
+          account,
+          to: destinationAddress,
+          value: parseEther(netAmount),
+        })
+      } else {
+        const tokenConfig = ERC20_TOKENS[token]
+        if (!tokenConfig || !tokenConfig.address) {
+          toast({ title: 'Error', description: `Unsupported token: ${token}`, variant: 'destructive' })
+          return
+        }
+
+        txHash = await walletClient.sendTransaction({
+          account,
+          to: tokenConfig.address,
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: 'transfer',
+            args: [destinationAddress, parseUnits(netAmount, tokenConfig.decimals)],
+          }),
+        })
+      }
+
+      setApproveStatus('Recording transaction...')
+
+      // POST txHash to the API
       const accessToken = await getAccessToken()
       if (!accessToken) return
-      const res = await adminFetch(`/api/admin/withdrawals/${id}/approve`, accessToken, {
+
+      const res = await adminFetch(`/api/admin/withdrawals/${withdrawal.id}/approve`, accessToken, {
         method: 'POST',
+        body: JSON.stringify({ txHash }),
       })
+
       if (res.ok) {
-        toast({ title: 'Withdrawal approved', description: 'The withdrawal has been approved successfully.' })
+        toast({ title: 'Withdrawal approved', description: `Transaction sent: ${txHash.slice(0, 10)}...` })
         refetch()
       } else {
         const data = await res.json()
         toast({ title: 'Error', description: data.error, variant: 'destructive' })
       }
-    } catch {
-      toast({ title: 'Error', description: 'Failed to approve withdrawal', variant: 'destructive' })
+    } catch (err: unknown) {
+      // User rejected the transaction in their wallet
+      if (err && typeof err === 'object' && 'code' in err && (err as { code: number }).code === 4001) {
+        toast({ title: 'Transaction cancelled', description: 'You rejected the transaction in your wallet.', variant: 'destructive' })
+      } else {
+        console.error('Approve error:', err)
+        toast({
+          title: 'Error',
+          description: err instanceof Error ? err.message : 'Failed to send transaction',
+          variant: 'destructive',
+        })
+      }
     } finally {
       setIsProcessing(false)
       setApprovingId(null)
+      setApproveStatus(null)
     }
   }
 
@@ -137,7 +260,24 @@ export default function AdminWithdrawalsPage() {
     <div className="space-y-6">
       <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
         <CardHeader>
-          <CardTitle className="text-white">Withdrawals</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white">Withdrawals</CardTitle>
+            {activeTab === 'pending' && (
+              <div className="flex items-center gap-2">
+                {adminWallet ? (
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/50">
+                    <Wallet className="h-3 w-3 mr-1" />
+                    {truncateAddress(adminWallet.address)}
+                  </Badge>
+                ) : (
+                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">
+                    <Wallet className="h-3 w-3 mr-1" />
+                    No wallet connected
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -218,12 +358,17 @@ export default function AdminWithdrawalsPage() {
                                 <div className="flex items-center gap-1 sm:gap-2">
                                   <Button
                                     size="sm"
-                                    onClick={() => handleApprove(w.id)}
+                                    onClick={() => handleApprove(w)}
                                     disabled={isProcessing}
                                     className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-3"
                                   >
                                     {approvingId === w.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      <span className="flex items-center gap-1">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <span className="hidden sm:inline text-xs">
+                                          {approveStatus || 'Processing...'}
+                                        </span>
+                                      </span>
                                     ) : (
                                       <>
                                         <CheckCircle className="h-4 w-4 sm:mr-1" />

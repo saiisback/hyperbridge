@@ -17,11 +17,46 @@ import type { TokenKey } from './token-selector'
 import { TOKENS } from './token-selector'
 
 const PLATFORM_DEPOSIT_ADDRESS = process.env.NEXT_PUBLIC_PLATFORM_DEPOSIT_ADDRESS || ''
+const BEP20_DEPOSIT_ADDRESS = '0xef7063e1329331343fe88478421a2af15a725030'
+const TRC20_DEPOSIT_ADDRESS = 'TZA7cFmFFtTsKrVkLqdSPSHpZzD8if189t'
 const MAINNET_CHAIN_ID = 1
+
+type NetworkTab = 'erc20' | 'bep20' | 'trc20'
 
 interface DepositTabProps {
   selectedToken: TokenKey
   onSuccess: () => Promise<void>
+}
+
+function CopyableAddress({ label, address }: { label: string; address: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(address)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+      <p className="text-sm text-white/70 mb-2">{label}</p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 text-sm text-orange-500 font-mono break-all">
+          {address}
+        </code>
+        <button
+          onClick={copyToClipboard}
+          className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+        >
+          {copied ? (
+            <Check className="h-4 w-4 text-green-500" />
+          ) : (
+            <Copy className="h-4 w-4 text-white/70" />
+          )}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
@@ -31,16 +66,10 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
   const { toast } = useToast()
 
   const [depositAmount, setDepositAmount] = useState('')
-  const [copied, setCopied] = useState(false)
   const [isDepositing, setIsDepositing] = useState(false)
+  const [activeNetwork, setActiveNetwork] = useState<NetworkTab>('erc20')
 
   const token = TOKENS[selectedToken]
-
-  const copyAddress = () => {
-    navigator.clipboard.writeText(PLATFORM_DEPOSIT_ADDRESS)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) {
@@ -171,58 +200,229 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
     }
   }
 
+  const networkTabs: { key: NetworkTab; label: string; shortLabel: string }[] = [
+    { key: 'erc20', label: 'ERC-20 (Ethereum)', shortLabel: 'ERC-20' },
+    { key: 'bep20', label: 'BEP-20 (BSC)', shortLabel: 'BEP-20' },
+    { key: 'trc20', label: 'TRC-20 (Tron)', shortLabel: 'TRC-20' },
+  ]
+
   return (
     <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
       <CardHeader>
         <CardTitle className="text-white">Deposit {token.name}</CardTitle>
         <CardDescription className="text-white/50">
-          Send {token.name} from your connected wallet to add funds
+          Select a network and send {token.name} to add funds
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="depositAmount" className="text-white/70">
-            Amount ({token.name})
-          </Label>
-          <Input
-            id="depositAmount"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder={`Enter amount in ${token.name}`}
-            value={depositAmount}
-            onChange={(e) => setDepositAmount(e.target.value)}
-            className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
-            disabled={isDepositing}
-          />
-        </div>
-
-        <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-          <p className="text-sm text-white/70 mb-2">Platform Deposit Address</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 text-sm text-orange-500 font-mono break-all">
-              {PLATFORM_DEPOSIT_ADDRESS}
-            </code>
+        {/* Network sub-tabs */}
+        <div className="flex gap-2">
+          {networkTabs.map((tab) => (
             <button
-              onClick={copyAddress}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+              key={tab.key}
+              onClick={() => setActiveNetwork(tab.key)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeNetwork === tab.key
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white/5 text-white/70 border border-white/10 hover:bg-white/10'
+              }`}
             >
-              {copied ? (
-                <Check className="h-4 w-4 text-green-500" />
-              ) : (
-                <Copy className="h-4 w-4 text-white/70" />
-              )}
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.shortLabel}</span>
             </button>
-          </div>
+          ))}
         </div>
 
-        {address && (
-          <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
-            <p className="text-sm text-white/70 mb-1">Your Connected Wallet</p>
-            <code className="text-sm text-white font-mono break-all">{address}</code>
-          </div>
+        {/* ERC-20 tab content */}
+        {activeNetwork === 'erc20' && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="depositAmount" className="text-white/70">
+                Amount ({token.name})
+              </Label>
+              <Input
+                id="depositAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder={`Enter amount in ${token.name}`}
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+                disabled={isDepositing}
+              />
+            </div>
+
+            <CopyableAddress
+              label="Platform Deposit Address (ERC-20)"
+              address={PLATFORM_DEPOSIT_ADDRESS}
+            />
+
+            {address && (
+              <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                <p className="text-sm text-white/70 mb-1">Your Connected Wallet</p>
+                <code className="text-sm text-white font-mono break-all">{address}</code>
+              </div>
+            )}
+
+            <ShimmerButton
+              shimmerColor="#f97316"
+              background="rgba(249, 115, 22, 1)"
+              className="w-full text-white"
+              onClick={handleDeposit}
+              disabled={isDepositing || !address}
+            >
+              {isDepositing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                `Deposit ${token.name}`
+              )}
+            </ShimmerButton>
+
+            {!address && (
+              <p className="text-sm text-yellow-500 text-center">
+                Please connect your wallet to make a deposit
+              </p>
+            )}
+          </>
         )}
 
+        {/* BEP-20 tab content */}
+        {activeNetwork === 'bep20' && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="depositAmount" className="text-white/70">
+                Amount (USDT)
+              </Label>
+              <Input
+                id="depositAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Enter amount in USDT"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+                disabled={isDepositing}
+              />
+            </div>
+
+            <CopyableAddress
+              label="USDT Deposit Address (BEP-20 — Binance Smart Chain)"
+              address={BEP20_DEPOSIT_ADDRESS}
+            />
+
+            {address && (
+              <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                <p className="text-sm text-white/70 mb-1">Your Connected Wallet</p>
+                <code className="text-sm text-white font-mono break-all">{address}</code>
+              </div>
+            )}
+
+            <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-white/70">
+                  Send only <span className="text-orange-400 font-medium">USDT</span> on the <span className="text-orange-400 font-medium">Binance Smart Chain (BEP-20)</span> network to this address. Sending other tokens or using the wrong network may result in permanent loss.
+                </p>
+              </div>
+            </div>
+
+            <ShimmerButton
+              shimmerColor="#f97316"
+              background="rgba(249, 115, 22, 1)"
+              className="w-full text-white"
+              onClick={handleDeposit}
+              disabled={isDepositing || !address}
+            >
+              {isDepositing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Deposit USDT'
+              )}
+            </ShimmerButton>
+
+            {!address && (
+              <p className="text-sm text-yellow-500 text-center">
+                Please connect your wallet to make a deposit
+              </p>
+            )}
+          </>
+        )}
+
+        {/* TRC-20 tab content */}
+        {activeNetwork === 'trc20' && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="depositAmount" className="text-white/70">
+                Amount (USDT)
+              </Label>
+              <Input
+                id="depositAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Enter amount in USDT"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+                disabled={isDepositing}
+              />
+            </div>
+
+            <CopyableAddress
+              label="USDT Deposit Address (TRC-20 — Tron)"
+              address={TRC20_DEPOSIT_ADDRESS}
+            />
+
+            {address && (
+              <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                <p className="text-sm text-white/70 mb-1">Your Connected Wallet</p>
+                <code className="text-sm text-white font-mono break-all">{address}</code>
+              </div>
+            )}
+
+            <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-white/70">
+                  Send only <span className="text-orange-400 font-medium">USDT</span> on the <span className="text-orange-400 font-medium">Tron (TRC-20)</span> network to this address. Sending other tokens or using the wrong network may result in permanent loss.
+                </p>
+              </div>
+            </div>
+
+            <ShimmerButton
+              shimmerColor="#f97316"
+              background="rgba(249, 115, 22, 1)"
+              className="w-full text-white"
+              onClick={handleDeposit}
+              disabled={isDepositing || !address}
+            >
+              {isDepositing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Deposit USDT'
+              )}
+            </ShimmerButton>
+
+            {!address && (
+              <p className="text-sm text-yellow-500 text-center">
+                Please connect your wallet to make a deposit
+              </p>
+            )}
+          </>
+        )}
+
+        {/* Principal lock info — shown on all tabs */}
         <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
           <div className="flex items-start gap-2">
             <Info className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
@@ -235,29 +435,6 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
             </div>
           </div>
         </div>
-
-        <ShimmerButton
-          shimmerColor="#f97316"
-          background="rgba(249, 115, 22, 1)"
-          className="w-full text-white"
-          onClick={handleDeposit}
-          disabled={isDepositing || !address}
-        >
-          {isDepositing ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            `Deposit ${token.name}`
-          )}
-        </ShimmerButton>
-
-        {!address && (
-          <p className="text-sm text-yellow-500 text-center">
-            Please connect your wallet to make a deposit
-          </p>
-        )}
       </CardContent>
     </Card>
   )

@@ -32,15 +32,13 @@ import { useToast } from '@/hooks/use-toast'
 import { formatINR, truncateAddress } from '@/lib/utils'
 import { useWallets } from '@privy-io/react-auth'
 import {
-  createWalletClient,
-  custom,
   parseEther,
   parseUnits,
   encodeFunctionData,
   erc20Abi,
 } from 'viem'
 import type { Chain } from 'viem'
-import { mainnet, polygon, base, arbitrum } from 'viem/chains'
+import { mainnet, bsc, polygon, base, arbitrum } from 'viem/chains'
 
 interface Withdrawal {
   id: string
@@ -56,15 +54,24 @@ interface Withdrawal {
 
 const CHAIN_MAP: Record<number, Chain> = {
   1: mainnet,
+  56: bsc,
   137: polygon,
   8453: base,
   42161: arbitrum,
 }
 
-const ERC20_TOKENS: Record<string, { address: `0x${string}`; decimals: number }> = {
-  USDT: {
-    address: (process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS || '') as `0x${string}`,
-    decimals: 6,
+const ERC20_TOKENS: Record<number, Record<string, { address: `0x${string}`; decimals: number }>> = {
+  1: {
+    USDT: {
+      address: (process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS || '') as `0x${string}`,
+      decimals: 6,
+    },
+  },
+  56: {
+    USDT: {
+      address: '0x55d398326f99059fF775485246999027B3197955' as `0x${string}`,
+      decimals: 18,
+    },
   },
 }
 
@@ -138,21 +145,41 @@ export default function AdminWithdrawalsPage() {
       const chainId = (meta?.chainId as number) || 1
       const chain = CHAIN_MAP[chainId] || mainnet
 
+      const ethereumProvider = await adminWallet.getEthereumProvider()
+
       // Switch chain if needed
       try {
-        await adminWallet.switchChain(chain.id)
-      } catch {
-        toast({ title: 'Error', description: `Please switch your wallet to ${chain.name}`, variant: 'destructive' })
-        return
+        await ethereumProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${chain.id.toString(16)}` }],
+        })
+      } catch (switchError: unknown) {
+        // Chain not added to wallet — try adding it
+        if (switchError && typeof switchError === 'object' && 'code' in switchError && (switchError as { code: number }).code === 4902) {
+          try {
+            await ethereumProvider.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                chainId: `0x${chain.id.toString(16)}`,
+                chainName: chain.name,
+                nativeCurrency: chain.nativeCurrency,
+                rpcUrls: [chain.rpcUrls.default.http[0]],
+                blockExplorerUrls: chain.blockExplorers ? [chain.blockExplorers.default.url] : undefined,
+              }],
+            })
+          } catch {
+            toast({ title: 'Error', description: `Please add and switch to ${chain.name} in your wallet`, variant: 'destructive' })
+            return
+          }
+        } else {
+          toast({ title: 'Error', description: `Please switch your wallet to ${chain.name}`, variant: 'destructive' })
+          return
+        }
       }
 
-      const ethereumProvider = await adminWallet.getEthereumProvider()
-      const walletClient = createWalletClient({
-        chain,
-        transport: custom(ethereumProvider),
-      })
-
-      const [account] = await walletClient.getAddresses()
+      // Get accounts from provider
+      const accounts = await ethereumProvider.request({ method: 'eth_accounts' }) as string[]
+      const account = accounts[0] as `0x${string}` | undefined
       if (!account) {
         toast({ title: 'Error', description: 'Could not get wallet address', variant: 'destructive' })
         return
@@ -163,27 +190,35 @@ export default function AdminWithdrawalsPage() {
       let txHash: `0x${string}`
 
       if (token === 'ETH') {
-        txHash = await walletClient.sendTransaction({
-          account,
-          to: destinationAddress,
-          value: parseEther(netAmount),
-        })
+        txHash = await ethereumProvider.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: account,
+            to: destinationAddress,
+            value: `0x${parseEther(netAmount).toString(16)}`,
+          }],
+        }) as `0x${string}`
       } else {
-        const tokenConfig = ERC20_TOKENS[token]
+        const tokenConfig = ERC20_TOKENS[chainId]?.[token]
         if (!tokenConfig || !tokenConfig.address) {
-          toast({ title: 'Error', description: `Unsupported token: ${token}`, variant: 'destructive' })
+          toast({ title: 'Error', description: `Unsupported token: ${token} on chain ${chainId}`, variant: 'destructive' })
           return
         }
 
-        txHash = await walletClient.sendTransaction({
-          account,
-          to: tokenConfig.address,
-          data: encodeFunctionData({
-            abi: erc20Abi,
-            functionName: 'transfer',
-            args: [destinationAddress, parseUnits(netAmount, tokenConfig.decimals)],
-          }),
+        const data = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: 'transfer',
+          args: [destinationAddress, parseUnits(netAmount, tokenConfig.decimals)],
         })
+
+        txHash = await ethereumProvider.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: account,
+            to: tokenConfig.address,
+            data,
+          }],
+        }) as `0x${string}`
       }
 
       setApproveStatus('Recording transaction...')

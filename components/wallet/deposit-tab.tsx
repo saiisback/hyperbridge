@@ -11,7 +11,7 @@ import { useWallet } from '@/hooks/use-wallet'
 import { useToast } from '@/hooks/use-toast'
 import { useWallets } from '@privy-io/react-auth'
 import { authFetch } from '@/lib/api'
-import { createWalletClient, createPublicClient, custom, http, parseEther, parseUnits, erc20Abi } from 'viem'
+import { createPublicClient, http, parseEther, parseUnits, encodeFunctionData, erc20Abi } from 'viem'
 import { mainnet, bsc } from 'viem/chains'
 import type { TokenKey } from './token-selector'
 import { TOKENS } from './token-selector'
@@ -108,35 +108,60 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
 
     setIsDepositing(true)
     try {
+      const ethereumProvider = await activeWallet.getEthereumProvider()
+
+      // Switch chain via provider directly
       try {
-        await activeWallet.switchChain(chainId)
-      } catch (switchError) {
-        console.log('Chain switch error (may already be on correct chain):', switchError)
+        await ethereumProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${chainId.toString(16)}` }],
+        })
+      } catch (switchError: unknown) {
+        if (switchError && typeof switchError === 'object' && 'code' in switchError && (switchError as { code: number }).code === 4902) {
+          await ethereumProvider.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: `0x${chainId.toString(16)}`,
+              chainName: chain.name,
+              nativeCurrency: chain.nativeCurrency,
+              rpcUrls: [chain.rpcUrls.default.http[0]],
+              blockExplorerUrls: chain.blockExplorers ? [chain.blockExplorers.default.url] : undefined,
+            }],
+          })
+        } else {
+          toast({ title: 'Chain switch failed', description: `Please switch your wallet to ${chain.name}`, variant: 'destructive' })
+          return
+        }
       }
 
-      const ethereumProvider = await activeWallet.getEthereumProvider()
-      const walletClient = createWalletClient({ chain, transport: custom(ethereumProvider) })
+      const accounts = await ethereumProvider.request({ method: 'eth_accounts' }) as string[]
+      const account = accounts[0] as `0x${string}`
+      if (!account) {
+        toast({ title: 'Error', description: 'Could not get wallet address', variant: 'destructive' })
+        return
+      }
+
       const publicClient = createPublicClient({ chain, transport: http() })
-      const [account] = await walletClient.getAddresses()
 
       toast({ title: 'Confirm transaction', description: `Please confirm the ${token.name} transfer in your wallet` })
 
       let hash: `0x${string}`
 
       if (token.address) {
-        hash = await walletClient.writeContract({
-          account,
-          address: token.address,
+        const data = encodeFunctionData({
           abi: erc20Abi,
           functionName: 'transfer',
           args: [depositAddress, parseUnits(depositAmount, token.decimals)],
         })
+        hash = await ethereumProvider.request({
+          method: 'eth_sendTransaction',
+          params: [{ from: account, to: token.address, data }],
+        }) as `0x${string}`
       } else {
-        hash = await walletClient.sendTransaction({
-          account,
-          to: depositAddress,
-          value: parseEther(depositAmount),
-        })
+        hash = await ethereumProvider.request({
+          method: 'eth_sendTransaction',
+          params: [{ from: account, to: depositAddress, value: `0x${parseEther(depositAmount).toString(16)}` }],
+        }) as `0x${string}`
       }
 
       toast({ title: 'Transaction sent', description: 'Waiting for confirmation...' })

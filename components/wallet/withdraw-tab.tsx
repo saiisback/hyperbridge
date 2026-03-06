@@ -90,7 +90,7 @@ export function WithdrawTab({
         body: JSON.stringify({
           amount: withdrawAmount,
           walletAddress: withdrawAddress,
-          token: selectedToken,
+          token: token.baseToken,
         }),
       })
 

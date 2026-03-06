@@ -21,7 +21,7 @@ export default function WalletPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
-  const [selectedToken, setSelectedToken] = useState<TokenKey>('ETH')
+  const [selectedToken, setSelectedToken] = useState<TokenKey>('USDT-ERC20')
 
   // Query hooks
   const { data: statsData, isLoading: isLoadingBalance } = useDashboardStats()

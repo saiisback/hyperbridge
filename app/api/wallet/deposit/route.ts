@@ -34,7 +34,7 @@ const ethPublicClient = createPublicClient({
 
 const bscPublicClient = createPublicClient({
   chain: bsc,
-  transport: http(),
+  transport: http(process.env.BSC_RPC_URL || 'https://bsc-dataseed.binance.org'),
 })
 
 const depositSchema = z.object({

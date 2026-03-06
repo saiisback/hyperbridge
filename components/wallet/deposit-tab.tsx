@@ -141,7 +141,8 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
         return
       }
 
-      const publicClient = createPublicClient({ chain, transport: http() })
+      const rpcUrl = networkKey === 'bsc' ? 'https://bsc-dataseed.binance.org' : undefined
+      const publicClient = createPublicClient({ chain, transport: http(rpcUrl) })
 
       toast({ title: 'Confirm transaction', description: `Please confirm the ${token.name} transfer in your wallet` })
 
@@ -165,43 +166,54 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
       }
 
       toast({ title: 'Transaction sent', description: 'Waiting for confirmation...' })
-      const receipt = await publicClient.waitForTransactionReceipt({ hash })
 
-      if (receipt.status === 'success') {
-        const accessToken = await getAccessToken()
-        if (!accessToken) throw new Error('Not authenticated')
-        const response = await authFetch('/api/wallet/deposit', accessToken, {
-          method: 'POST',
-          body: JSON.stringify({
-            txHash: receipt.transactionHash,
-            amount: depositAmount,
-            walletAddress: activeWallet.address,
-            token: token.baseToken,
-            network: token.network,
-          }),
-        })
+      let receiptStatus: 'success' | 'reverted' = 'success'
+      let confirmedHash = hash
+      try {
+        const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 })
+        receiptStatus = receipt.status
+        confirmedHash = receipt.transactionHash
+      } catch (receiptError) {
+        // Timeout or RPC error — tx was sent, let the server verify on-chain
+        console.warn('Client-side receipt wait failed, proceeding with server verification:', receiptError)
+      }
 
-        const responseData = await response.json()
-
-        if (response.ok) {
-          if (responseData.profile) setProfileData(responseData.profile)
-          const lockDate = responseData.lockInfo?.lockedUntil
-            ? new Date(responseData.lockInfo.lockedUntil).toLocaleDateString()
-            : null
-          toast({
-            title: 'Deposit successful',
-            description: lockDate
-              ? `${depositAmount} ${token.name} deposited. Principal locked until ${lockDate}.`
-              : `${depositAmount} ${token.name} has been added to your balance`,
-          })
-          setDepositAmount('')
-          await refreshUser()
-          await onSuccess()
-        } else {
-          toast({ title: 'Deposit recording failed', description: responseData.error || 'Failed to record deposit', variant: 'destructive' })
-        }
-      } else {
+      if (receiptStatus === 'reverted') {
         toast({ title: 'Transaction failed', description: 'The transaction was not successful', variant: 'destructive' })
+        return
+      }
+
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('Not authenticated')
+      const response = await authFetch('/api/wallet/deposit', accessToken, {
+        method: 'POST',
+        body: JSON.stringify({
+          txHash: confirmedHash,
+          amount: depositAmount,
+          walletAddress: activeWallet.address,
+          token: token.baseToken,
+          network: token.network,
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (response.ok) {
+        if (responseData.profile) setProfileData(responseData.profile)
+        const lockDate = responseData.lockInfo?.lockedUntil
+          ? new Date(responseData.lockInfo.lockedUntil).toLocaleDateString()
+          : null
+        toast({
+          title: 'Deposit successful',
+          description: lockDate
+            ? `${depositAmount} ${token.name} deposited. Principal locked until ${lockDate}.`
+            : `${depositAmount} ${token.name} has been added to your balance`,
+        })
+        setDepositAmount('')
+        await refreshUser()
+        await onSuccess()
+      } else {
+        toast({ title: 'Deposit recording failed', description: responseData.error || 'Failed to record deposit', variant: 'destructive' })
       }
     } catch (error: unknown) {
       console.error('Deposit error:', error)

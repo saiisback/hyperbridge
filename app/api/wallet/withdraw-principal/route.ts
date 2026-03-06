@@ -15,6 +15,7 @@ const withdrawPrincipalSchema = z.object({
   ),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format'),
   token: z.string().optional(),
+  network: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    const { amount, walletAddress: rawWalletAddress, token } = parsed.data
+    const { amount, walletAddress: rawWalletAddress, token, network } = parsed.data
 
     const parsedAmountInr = parseFloat(amount)
 
@@ -142,6 +143,8 @@ export async function POST(request: NextRequest) {
             netAmountInr,
             netAmount: netCryptoAmount,
             isPrincipalWithdrawal: true,
+            network: network || 'ethereum',
+            chainId: network === 'bsc' ? 56 : 1,
           },
         },
       })

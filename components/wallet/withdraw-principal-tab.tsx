@@ -85,6 +85,7 @@ export function WithdrawPrincipalTab({
           amount: withdrawAmount,
           walletAddress: withdrawAddress,
           token: token.baseToken,
+          network: token.network,
         }),
       })
 

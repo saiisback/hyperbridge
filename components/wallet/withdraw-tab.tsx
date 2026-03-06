@@ -91,6 +91,7 @@ export function WithdrawTab({
           amount: withdrawAmount,
           walletAddress: withdrawAddress,
           token: token.baseToken,
+          network: token.network,
         }),
       })
 

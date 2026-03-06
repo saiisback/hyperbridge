@@ -352,6 +352,7 @@ export default function AdminWithdrawalsPage() {
                         <TableRow className="border-white/10 hover:bg-transparent">
                           <TableHead className="text-white/50">User</TableHead>
                           <TableHead className="text-white/50">Amount</TableHead>
+                          <TableHead className="text-white/50 hidden sm:table-cell">Network</TableHead>
                           <TableHead className="text-white/50 hidden sm:table-cell">Destination</TableHead>
                           <TableHead className="text-white/50">Status</TableHead>
                           <TableHead className="text-white/50 hidden sm:table-cell">Date</TableHead>
@@ -368,6 +369,15 @@ export default function AdminWithdrawalsPage() {
                             </TableCell>
                             <TableCell className="text-red-500 font-medium">
                               ₹{formatINR(parseFloat(w.amountInr || w.amount))}
+                            </TableCell>
+                            <TableCell className="text-white/70 hidden sm:table-cell">
+                              <Badge className={
+                                (w.metadata?.chainId as number) === 56
+                                  ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
+                                  : 'bg-blue-500/20 text-blue-400 border-blue-500/50'
+                              }>
+                                {(w.metadata?.chainId as number) === 56 ? 'BEP-20' : 'ERC-20'}
+                              </Badge>
                             </TableCell>
                             <TableCell className="text-white/70 font-mono hidden sm:table-cell">
                               {w.walletAddress ? truncateAddress(w.walletAddress) : '-'}

@@ -21,7 +21,7 @@ const BEP20_DEPOSIT_ADDRESS = '0xef7063e1329331343fe88478421a2af15a725030'
 const TRC20_DEPOSIT_ADDRESS = 'TZA7cFmFFtTsKrVkLqdSPSHpZzD8if189t'
 const MAINNET_CHAIN_ID = 1
 
-type NetworkTab = 'erc20' | 'bep20' | 'trc20'
+type NetworkTab = 'erc20' | 'bep20' | 'trc20' | 'bank'
 
 interface DepositTabProps {
   selectedToken: TokenKey
@@ -68,6 +68,11 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
   const [depositAmount, setDepositAmount] = useState('')
   const [isDepositing, setIsDepositing] = useState(false)
   const [activeNetwork, setActiveNetwork] = useState<NetworkTab>('erc20')
+  const [bankRemarkCode, setBankRemarkCode] = useState<string | null>(null)
+  const [bankDetails, setBankDetails] = useState<{
+    bankName: string; accountNumber: string; ifsc: string; accountHolder: string; upiId: string
+  } | null>(null)
+  const [bankDepositPending, setBankDepositPending] = useState(false)
 
   const token = TOKENS[selectedToken]
 
@@ -198,6 +203,63 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
     } finally {
       setIsDepositing(false)
     }
+  }
+
+  const handleBankDeposit = async () => {
+    const amount = parseFloat(depositAmount)
+    if (!amount || amount < 100) {
+      toast({
+        title: 'Invalid amount',
+        description: 'Minimum deposit is ₹100',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsDepositing(true)
+    try {
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('Not authenticated')
+
+      const response = await authFetch('/api/wallet/deposit-inr', accessToken, {
+        method: 'POST',
+        body: JSON.stringify({ amount }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setBankRemarkCode(data.transaction.remarkCode)
+        setBankDetails(data.bankDetails)
+        setBankDepositPending(true)
+        toast({
+          title: 'Deposit initiated',
+          description: `Use remark code ${data.transaction.remarkCode} in your bank transfer`,
+        })
+      } else {
+        toast({
+          title: 'Error',
+          description: data.error || 'Failed to initiate deposit',
+          variant: 'destructive',
+        })
+      }
+    } catch (error: unknown) {
+      console.error('Bank deposit error:', error)
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to initiate deposit',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDepositing(false)
+    }
+  }
+
+  const resetBankDeposit = () => {
+    setBankRemarkCode(null)
+    setBankDetails(null)
+    setBankDepositPending(false)
+    setDepositAmount('')
   }
 
   const networkTabs: { key: NetworkTab; label: string; shortLabel: string }[] = [
@@ -418,6 +480,121 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
               <p className="text-sm text-yellow-500 text-center">
                 Please connect your wallet to make a deposit
               </p>
+            )}
+          </>
+        )}
+
+        {/* Bank Transfer tab content */}
+        {activeNetwork === 'bank' && (
+          <>
+            {!bankDepositPending ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="bankDepositAmount" className="text-white/70">
+                    Amount (INR)
+                  </Label>
+                  <Input
+                    id="bankDepositAmount"
+                    type="number"
+                    step="1"
+                    min="100"
+                    placeholder="Enter amount in INR (min ₹100)"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+                    disabled={isDepositing}
+                  />
+                </div>
+
+                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-white/70">
+                      Transfer INR via <span className="text-orange-400 font-medium">UPI, IMPS, or NEFT</span> directly to our bank account. Include the remark code provided after clicking the button below.
+                    </p>
+                  </div>
+                </div>
+
+                <ShimmerButton
+                  shimmerColor="#f97316"
+                  background="rgba(249, 115, 22, 1)"
+                  className="w-full text-white"
+                  onClick={handleBankDeposit}
+                  disabled={isDepositing}
+                >
+                  {isDepositing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Get Bank Details & Remark Code'
+                  )}
+                </ShimmerButton>
+              </>
+            ) : (
+              <>
+                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                  <p className="text-sm font-medium text-green-400 mb-1">Deposit Initiated — ₹{parseFloat(depositAmount).toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-white/60">
+                    Transfer the exact amount to the bank details below with the remark code. Your balance will be credited after admin verification.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-lg bg-orange-500/20 border border-orange-500/50">
+                  <p className="text-sm text-white/70 mb-2">Remark Code (include in transfer)</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-2xl text-orange-500 font-mono font-bold tracking-widest text-center">
+                      {bankRemarkCode}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(bankRemarkCode || '')
+                        toast({ title: 'Copied!', description: 'Remark code copied to clipboard' })
+                      }}
+                      className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                    >
+                      <Copy className="h-4 w-4 text-white/70" />
+                    </button>
+                  </div>
+                </div>
+
+                {bankDetails && (
+                  <div className="space-y-3">
+                    {bankDetails.upiId && (
+                      <CopyableAddress label="UPI ID" address={bankDetails.upiId} />
+                    )}
+                    {bankDetails.accountNumber && (
+                      <CopyableAddress label="Account Number" address={bankDetails.accountNumber} />
+                    )}
+                    {bankDetails.ifsc && (
+                      <CopyableAddress label="IFSC Code" address={bankDetails.ifsc} />
+                    )}
+                    {bankDetails.accountHolder && (
+                      <CopyableAddress label="Account Holder" address={bankDetails.accountHolder} />
+                    )}
+                    {bankDetails.bankName && (
+                      <CopyableAddress label="Bank Name" address={bankDetails.bankName} />
+                    )}
+                  </div>
+                )}
+
+                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                    <p className="text-sm text-white/70">
+                      Awaiting your bank transfer. Once payment is verified by admin, your balance will be credited in USDT at the live conversion rate.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={resetBankDeposit}
+                  className="w-full py-2 text-sm text-white/50 hover:text-white/70 transition-colors"
+                >
+                  Start a new deposit
+                </button>
+              </>
             )}
           </>
         )}

@@ -24,7 +24,7 @@ interface Transaction {
   date: string
   txHash: string | null
   walletAddress: string | null
-  metadata?: { token?: string; priceFetchedAt?: string }
+  metadata?: { token?: string; priceFetchedAt?: string; method?: string; remarkCode?: string }
 }
 
 function getStatusBadge(status: string) {
@@ -86,7 +86,9 @@ export function TransactionHistory({ transactions, isLoading }: TransactionHisto
               <TableBody>
                 {transactions.map((tx) => (
                   <TableRow key={tx.id} className="border-white/10 hover:bg-white/5">
-                    <TableCell className="text-white font-medium capitalize">{tx.type}</TableCell>
+                    <TableCell className="text-white font-medium capitalize">
+                      {tx.metadata?.method === 'bank_inr' ? 'Bank Transfer' : tx.type}
+                    </TableCell>
                     <TableCell className="text-white/70">
                       {parseFloat(tx.amount).toFixed(6)} {getTransactionToken(tx)}
                     </TableCell>
@@ -105,10 +107,20 @@ export function TransactionHistory({ transactions, isLoading }: TransactionHisto
                         ? `1 ${getTransactionToken(tx)} = ₹${parseFloat(tx.conversionRate).toLocaleString('en-IN')}`
                         : '-'}
                     </TableCell>
-                    <TableCell>{getStatusBadge(tx.status)}</TableCell>
+                    <TableCell>
+                      {tx.metadata?.method === 'bank_inr' && tx.status === 'pending' ? (
+                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">Awaiting verification</Badge>
+                      ) : (
+                        getStatusBadge(tx.status)
+                      )}
+                    </TableCell>
                     <TableCell className="text-white/70 hidden sm:table-cell">{formatDate(tx.date)}</TableCell>
                     <TableCell>
-                      {tx.txHash ? (
+                      {tx.metadata?.method === 'bank_inr' && tx.metadata?.remarkCode ? (
+                        <span className="font-mono text-orange-500 font-bold tracking-wider">
+                          {tx.metadata.remarkCode}
+                        </span>
+                      ) : tx.txHash ? (
                         <a
                           href={`https://etherscan.io/tx/${tx.txHash}`}
                           target="_blank"

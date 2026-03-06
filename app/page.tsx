@@ -11,8 +11,8 @@ export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <div className="absolute inset-0 bg-black">
+    <div className="min-h-screen relative bg-black">
+      <div className="fixed inset-0 bg-black pointer-events-none">
         {/* Flowing wave rays overlay */}
         <div className="absolute inset-0">
           <svg
@@ -726,16 +726,10 @@ export default function HomePage() {
         </div>
 
         <nav className="hidden md:flex items-center space-x-6 lg:space-x-8">
-          <a href="#" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
-            Features
-          </a>
-          <a href="#" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
-            Pricing
-          </a>
-          <a href="#" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
+          <a href="#about" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
             About us
           </a>
-          <a href="#" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
+          <a href="#contact" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
             Contact
           </a>
         </nav>
@@ -758,16 +752,10 @@ export default function HomePage() {
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 right-0 bg-black/95 backdrop-blur-sm border-b border-white/10 z-20">
           <nav className="flex flex-col space-y-4 px-6 py-6">
-            <a href="#" className="text-white/80 hover:text-white transition-colors">
-              Features
-            </a>
-            <a href="#" className="text-white/80 hover:text-white transition-colors">
-              Pricing
-            </a>
-            <a href="#" className="text-white/80 hover:text-white transition-colors">
+            <a href="#about" className="text-white/80 hover:text-white transition-colors" onClick={() => setMobileMenuOpen(false)}>
               About us
             </a>
-            <a href="#" className="text-white/80 hover:text-white transition-colors">
+            <a href="#contact" className="text-white/80 hover:text-white transition-colors" onClick={() => setMobileMenuOpen(false)}>
               Contact
             </a>
       
@@ -808,6 +796,79 @@ export default function HomePage() {
           </Button>
         </Link>
       </main>
+
+      {/* About Us Section */}
+      <section id="about" className="relative z-10 px-6 sm:px-12 lg:px-20 py-20 sm:py-28">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-white text-3xl sm:text-4xl lg:text-5xl font-bold mb-8">
+            About <span className="text-orange-500">Us</span>
+          </h2>
+          <div className="grid md:grid-cols-2 gap-10 lg:gap-16">
+            <div className="space-y-6">
+              <p className="text-white/70 text-base sm:text-lg leading-relaxed">
+                Winfinitty is a modern investment platform designed to help you grow your wealth effortlessly. We combine cutting-edge technology with proven strategies to deliver consistent returns for our community of investors.
+              </p>
+              <p className="text-white/70 text-base sm:text-lg leading-relaxed">
+                Our mission is to make high-quality investment opportunities accessible to everyone, regardless of experience level. Whether you&apos;re just starting out or looking to diversify, Winfinitty provides the tools and support you need to succeed.
+              </p>
+            </div>
+            <div className="space-y-6">
+              <div className="border border-white/10 rounded-xl p-6 bg-white/5 backdrop-blur-sm">
+                <h3 className="text-orange-400 text-xl font-semibold mb-2">Our Vision</h3>
+                <p className="text-white/60 text-sm sm:text-base">
+                  To empower individuals worldwide with the financial tools and knowledge to build lasting wealth and achieve financial freedom.
+                </p>
+              </div>
+              <div className="border border-white/10 rounded-xl p-6 bg-white/5 backdrop-blur-sm">
+                <h3 className="text-orange-400 text-xl font-semibold mb-2">Our Promise</h3>
+                <p className="text-white/60 text-sm sm:text-base">
+                  Transparency, security, and consistent growth — backed by a dedicated team committed to your success.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Section */}
+      <section id="contact" className="relative z-10 px-6 sm:px-12 lg:px-20 py-20 sm:py-28">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-white text-3xl sm:text-4xl lg:text-5xl font-bold mb-8">
+            Get in <span className="text-orange-500">Touch</span>
+          </h2>
+          <p className="text-white/70 text-base sm:text-lg mb-10 max-w-2xl">
+            Have questions or need support? Reach out to us and our team will get back to you as soon as possible.
+          </p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="border border-white/10 rounded-xl p-6 bg-white/5 backdrop-blur-sm">
+              <h3 className="text-orange-400 text-lg font-semibold mb-2">Email</h3>
+              <p className="text-white/60 text-sm">support@winfinitty.com</p>
+            </div>
+            <div className="border border-white/10 rounded-xl p-6 bg-white/5 backdrop-blur-sm">
+              <h3 className="text-orange-400 text-lg font-semibold mb-2">Community</h3>
+              <p className="text-white/60 text-sm">Join our Telegram group for updates and support.</p>
+            </div>
+            <div className="border border-white/10 rounded-xl p-6 bg-white/5 backdrop-blur-sm">
+              <h3 className="text-orange-400 text-lg font-semibold mb-2">Support Hours</h3>
+              <p className="text-white/60 text-sm">24/7 — We&apos;re always here to help.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t border-white/10 px-6 sm:px-12 lg:px-20 py-8">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center space-x-2">
+            <img src="/logo.svg" alt="Winfinitty Logo" className="w-6 h-6" />
+            <span className="text-white/60 text-sm">&copy; 2026 Winfinitty. All rights reserved.</span>
+          </div>
+          <div className="flex items-center space-x-6">
+            <a href="#about" className="text-white/50 hover:text-white/80 text-sm transition-colors">About</a>
+            <a href="#contact" className="text-white/50 hover:text-white/80 text-sm transition-colors">Contact</a>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

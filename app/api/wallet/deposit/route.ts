@@ -5,6 +5,7 @@ import { createPublicClient, http, formatEther, formatUnits, decodeEventLog, erc
 import { mainnet } from 'viem/chains'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
 import { getDepositLockDate, LOCK_DURATION_MONTHS } from '@/lib/wallet-utils'
+import { payFirstDepositReferralCommissions } from '@/lib/referral-commission'
 import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
@@ -221,10 +222,6 @@ export async function POST(request: NextRequest) {
       const cryptoAmount = parseFloat(actualAmount!)
       const amountInr = cryptoAmount * inrPrice
 
-      // Referral commission rates
-      const L1_RATE = 0.03 // 3% for direct referrer
-      const L2_RATE = 0.01 // 1% for indirect referrer
-
       // Update transaction and profile balance
       const result = await prisma.$transaction(async (tx) => {
         const updatedTransaction = await tx.transaction.update({
@@ -255,109 +252,7 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Only pay instant referral commission on first deposit
-        const previousDeposit = await tx.transaction.findFirst({
-          where: {
-            userId: user.id,
-            type: 'deposit',
-            status: 'completed',
-            id: { not: transaction.id },
-          },
-        })
-
-        const isFirstDeposit = !previousDeposit
-
-        if (isFirstDeposit) {
-          // Pay L1 referral commission to direct referrer
-          const l1Referral = await tx.referral.findFirst({
-            where: { refereeId: user.id, level: 1 },
-          })
-
-          if (l1Referral) {
-            const l1Commission = amountInr * L1_RATE
-
-            await tx.transaction.create({
-              data: {
-                userId: l1Referral.referrerId,
-                type: 'referral',
-                amount: l1Commission,
-                amountInr: l1Commission,
-                token: 'INR',
-                status: 'completed',
-                dedupKey: `ref:${l1Referral.referrerId}:${user.id}:instant`,
-                metadata: {
-                  fromUserId: user.id,
-                  fromAddress: walletAddress || 'Unknown',
-                  level: 1,
-                  depositAmount: amountInr,
-                  rate: `${L1_RATE * 100}%`,
-                  type: 'instant',
-                },
-              },
-            })
-
-            await tx.profile.update({
-              where: { userId: l1Referral.referrerId },
-              data: {
-                availableBalance: { increment: l1Commission },
-                roiBalance: { increment: l1Commission },
-                totalBalance: { increment: l1Commission },
-              },
-            })
-
-            await tx.referral.update({
-              where: { id: l1Referral.id },
-              data: {
-                totalEarnings: { increment: l1Commission },
-              },
-            })
-          }
-
-          // Pay L2 referral commission to indirect referrer
-          const l2Referral = await tx.referral.findFirst({
-            where: { refereeId: user.id, level: 2 },
-          })
-
-          if (l2Referral) {
-            const l2Commission = amountInr * L2_RATE
-
-            await tx.transaction.create({
-              data: {
-                userId: l2Referral.referrerId,
-                type: 'referral',
-                amount: l2Commission,
-                amountInr: l2Commission,
-                token: 'INR',
-                status: 'completed',
-                dedupKey: `ref:${l2Referral.referrerId}:${user.id}:instant`,
-                metadata: {
-                  fromUserId: user.id,
-                  fromAddress: walletAddress || 'Unknown',
-                  level: 2,
-                  depositAmount: amountInr,
-                  rate: `${L2_RATE * 100}%`,
-                  type: 'instant',
-                },
-              },
-            })
-
-            await tx.profile.update({
-              where: { userId: l2Referral.referrerId },
-              data: {
-                availableBalance: { increment: l2Commission },
-                roiBalance: { increment: l2Commission },
-                totalBalance: { increment: l2Commission },
-              },
-            })
-
-            await tx.referral.update({
-              where: { id: l2Referral.id },
-              data: {
-                totalEarnings: { increment: l2Commission },
-              },
-            })
-          }
-        }
+        await payFirstDepositReferralCommissions(tx, user.id, amountInr, transaction.id)
 
         return { transaction: updatedTransaction, profile: updatedProfile }
       })

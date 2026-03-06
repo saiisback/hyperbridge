@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/auth'
 import { createPublicClient, http, formatEther, formatUnits, decodeEventLog, erc20Abi } from 'viem'
-import { mainnet } from 'viem/chains'
+import { mainnet, bsc } from 'viem/chains'
 import { getTokenPriceInINR } from '@/lib/crypto-price'
 import { getDepositLockDate, LOCK_DURATION_MONTHS } from '@/lib/wallet-utils'
 import { payFirstDepositReferralCommissions } from '@/lib/referral-commission'
@@ -10,6 +10,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 const PLATFORM_DEPOSIT_ADDRESS = (process.env.NEXT_PUBLIC_PLATFORM_DEPOSIT_ADDRESS || '').toLowerCase()
+const BEP20_DEPOSIT_ADDRESS = (process.env.NEXT_PUBLIC_BEP20_DEPOSIT_ADDRESS || '0xef7063e1329331343fe88478421a2af15a725030').toLowerCase()
 
 const ERC20_TOKENS: Record<string, { address: string; decimals: number }> = {
   USDT: {
@@ -18,23 +19,30 @@ const ERC20_TOKENS: Record<string, { address: string; decimals: number }> = {
   },
 }
 
-const publicClient = createPublicClient({
+// BSC USDT (Binance-Peg) — 18 decimals
+const BSC_TOKENS: Record<string, { address: string; decimals: number }> = {
+  USDT: {
+    address: '0x55d398326f99059ff775485246999027b3197955',
+    decimals: 18,
+  },
+}
+
+const ethPublicClient = createPublicClient({
   chain: mainnet,
   transport: http(),
 })
 
-interface DepositRequest {
-  txHash: string
-  amount: string
-  walletAddress: string
-  token: string
-}
+const bscPublicClient = createPublicClient({
+  chain: bsc,
+  transport: http(),
+})
 
 const depositSchema = z.object({
   txHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/, 'Invalid transaction hash'),
   amount: z.string().min(1, 'Amount is required'),
   walletAddress: z.string().optional(),
   token: z.enum(['ETH', 'USDT'], { message: 'Invalid token. Must be ETH or USDT' }),
+  network: z.enum(['ethereum', 'bsc']).default('ethereum'),
 })
 
 export async function POST(request: NextRequest) {
@@ -61,7 +69,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    const { txHash, amount, walletAddress, token } = parsed.data
+    const { txHash, amount, walletAddress, token, network } = parsed.data
+    const isBsc = network === 'bsc'
+    const publicClient = isBsc ? bscPublicClient : ethPublicClient
+    const depositAddress = isBsc ? BEP20_DEPOSIT_ADDRESS : PLATFORM_DEPOSIT_ADDRESS
+    const tokenConfigs = isBsc ? BSC_TOKENS : ERC20_TOKENS
 
     // Find user by verified privyId
     const user = await prisma.user.findUnique({
@@ -90,8 +102,8 @@ export async function POST(request: NextRequest) {
           txHash: txHash.toLowerCase(),
           walletAddress: walletAddress?.toLowerCase() || null,
           metadata: {
-            network: 'ethereum',
-            platformAddress: PLATFORM_DEPOSIT_ADDRESS,
+            network,
+            platformAddress: depositAddress,
           },
         },
       })
@@ -147,9 +159,9 @@ export async function POST(request: NextRequest) {
 
       let actualAmount: string | null = null
 
-      if (token === 'ETH') {
+      if (token === 'ETH' && !isBsc) {
         // Native ETH transfer — verify recipient is platform address
-        if (tx.to?.toLowerCase() !== PLATFORM_DEPOSIT_ADDRESS) {
+        if (tx.to?.toLowerCase() !== depositAddress) {
           await prisma.transaction.update({
             where: { id: transaction.id },
             data: { status: 'failed' },
@@ -158,8 +170,8 @@ export async function POST(request: NextRequest) {
         }
         actualAmount = formatEther(tx.value)
       } else {
-        // ERC-20 transfer (USDT) — verify via Transfer event logs
-        const tokenConfig = ERC20_TOKENS[token]
+        // ERC-20 / BEP-20 token transfer — verify via Transfer event logs
+        const tokenConfig = tokenConfigs[token]
 
         if (tx.to?.toLowerCase() !== tokenConfig.address) {
           await prisma.transaction.update({
@@ -181,7 +193,7 @@ export async function POST(request: NextRequest) {
 
             if (
               decoded.eventName === 'Transfer' &&
-              decoded.args.to.toLowerCase() === PLATFORM_DEPOSIT_ADDRESS
+              decoded.args.to.toLowerCase() === depositAddress
             ) {
               actualAmount = formatUnits(decoded.args.value, tokenConfig.decimals)
               break
@@ -232,8 +244,8 @@ export async function POST(request: NextRequest) {
             amountInr,
             conversionRate: inrPrice,
             metadata: {
-              network: 'ethereum',
-              platformAddress: PLATFORM_DEPOSIT_ADDRESS,
+              network,
+              platformAddress: depositAddress,
               priceFetchedAt,
               lockedUntil: getDepositLockDate().toISOString(),
             },

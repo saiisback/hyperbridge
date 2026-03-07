@@ -36,11 +36,18 @@ const bscPublicClient = createPublicClient({
   transport: http(process.env.BSC_RPC_URL || 'https://bsc-dataseed.binance.org'),
 })
 
+// 5-minute window: tx must have been submitted within the last 5 minutes
+const TX_SUBMISSION_WINDOW_MS = 5 * 60 * 1000
+// Allow 2% tolerance for amount mismatch (gas deduction on native transfers, rounding)
+const AMOUNT_TOLERANCE = 0.02
+
 const depositManualSchema = z.object({
   txHash: z.string().min(10, 'Please enter a valid transaction hash'),
   amount: z.string().min(1, 'Amount is required'),
+  senderAddress: z.string().optional(), // required for ethereum/bsc, optional for trc20
   network: z.enum(['ethereum', 'bsc', 'trc20'], { message: 'Invalid network' }),
   token: z.enum(['ETH', 'USDT']).default('USDT'),
+  submittedAt: z.number().optional(), // timestamp when user started the deposit flow
 })
 
 const DEPOSIT_ADDRESSES: Record<string, string> = {
@@ -79,8 +86,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { txHash, amount, network, token } = parsed.data
+    const { txHash, amount, network, token, senderAddress, submittedAt } = parsed.data
     const networkLabel = NETWORK_LABELS[network]
+
+    // For EVM chains, require sender address
+    if ((network === 'ethereum' || network === 'bsc') && !senderAddress?.trim()) {
+      return NextResponse.json(
+        { error: 'Sender wallet address is required' },
+        { status: 400 }
+      )
+    }
+
+    // Enforce 5-minute submission window
+    if (submittedAt) {
+      const elapsed = Date.now() - submittedAt
+      if (elapsed > TX_SUBMISSION_WINDOW_MS) {
+        return NextResponse.json(
+          { error: 'Submission window expired. Please start a new deposit.' },
+          { status: 400 }
+        )
+      }
+    }
 
     const user = await prisma.user.findUnique({
       where: { privyId },
@@ -106,10 +132,12 @@ export async function POST(request: NextRequest) {
           token,
           status: 'pending',
           txHash: txHash.trim(),
+          walletAddress: senderAddress?.trim().toLowerCase() || null,
           metadata: {
             network,
             networkLabel,
             method: 'manual',
+            senderAddress: senderAddress?.trim().toLowerCase() || null,
             platformAddress: DEPOSIT_ADDRESSES[network],
           },
         },
@@ -160,18 +188,53 @@ export async function POST(request: NextRequest) {
 
         const tx = await publicClient.getTransaction({ hash })
 
+        // Verify sender address matches what the user provided
+        if (senderAddress && tx.from.toLowerCase() !== senderAddress.trim().toLowerCase()) {
+          await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'failed' },
+          })
+          return NextResponse.json(
+            { error: 'Transaction sender does not match the wallet address you provided' },
+            { status: 400 }
+          )
+        }
+
+        // Verify the tx was mined within the 5-minute window
+        const block = await publicClient.getBlock({ blockNumber: txReceipt.blockNumber })
+        const txTimestamp = Number(block.timestamp) * 1000 // convert to ms
+        const now = Date.now()
+        if (now - txTimestamp > TX_SUBMISSION_WINDOW_MS) {
+          await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'failed' },
+          })
+          return NextResponse.json(
+            { error: 'Transaction is older than 5 minutes. Please start a new deposit.' },
+            { status: 400 }
+          )
+        }
+
         let actualAmount: string | null = null
+        let verifiedTokenContract: string | null = null
+        let verifiedFrom: string | null = null
+        let verifiedTo: string | null = null
 
         if (token === 'ETH' && !isBsc) {
-          // Native ETH transfer
+          // Native ETH transfer — verify recipient is platform address
           if (tx.to?.toLowerCase() !== depositAddress) {
             await prisma.transaction.update({
               where: { id: transaction.id },
               data: { status: 'failed' },
             })
-            return NextResponse.json({ error: 'Invalid recipient address' }, { status: 400 })
+            return NextResponse.json(
+              { error: `ETH was not sent to the platform address. Expected ${depositAddress}, got ${tx.to?.toLowerCase()}` },
+              { status: 400 }
+            )
           }
           actualAmount = formatEther(tx.value)
+          verifiedFrom = tx.from.toLowerCase()
+          verifiedTo = tx.to.toLowerCase()
         } else {
           // ERC-20 / BEP-20 token transfer
           const tokenConfig = tokenConfigs[token]
@@ -184,15 +247,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unsupported token for this network' }, { status: 400 })
           }
 
+          // Verify the transaction interacted with the exact whitelisted token contract
           if (tx.to?.toLowerCase() !== tokenConfig.address) {
             await prisma.transaction.update({
               where: { id: transaction.id },
               data: { status: 'failed' },
             })
-            return NextResponse.json({ error: 'Transaction was not sent to the expected token contract' }, { status: 400 })
+            return NextResponse.json(
+              { error: `Wrong token contract. Expected ${token} contract (${tokenConfig.address}), but transaction was sent to ${tx.to?.toLowerCase()}. Make sure you sent the correct token.` },
+              { status: 400 }
+            )
           }
 
+          // Parse Transfer events only from the whitelisted token contract
           for (const log of txReceipt.logs) {
+            // Only look at events emitted by the exact expected token contract
             if (log.address.toLowerCase() !== tokenConfig.address) continue
 
             try {
@@ -202,24 +271,77 @@ export async function POST(request: NextRequest) {
                 topics: log.topics,
               })
 
-              if (
-                decoded.eventName === 'Transfer' &&
-                decoded.args.to.toLowerCase() === depositAddress
-              ) {
-                actualAmount = formatUnits(decoded.args.value, tokenConfig.decimals)
-                break
-              }
+              if (decoded.eventName !== 'Transfer') continue
+
+              const eventFrom = decoded.args.from.toLowerCase()
+              const eventTo = decoded.args.to.toLowerCase()
+
+              // Must be sent TO the platform deposit address
+              if (eventTo !== depositAddress) continue
+
+              // Must be sent FROM the sender address the user provided
+              if (senderAddress && eventFrom !== senderAddress.trim().toLowerCase()) continue
+
+              actualAmount = formatUnits(decoded.args.value, tokenConfig.decimals)
+              verifiedTokenContract = log.address.toLowerCase()
+              verifiedFrom = eventFrom
+              verifiedTo = eventTo
+              break
             } catch {
               continue
             }
           }
 
           if (!actualAmount) {
+            // Determine why verification failed for a helpful error
+            let reason = 'No valid token transfer found.'
+
+            // Check if there's a Transfer to the right address but from wrong sender
+            for (const log of txReceipt.logs) {
+              if (log.address.toLowerCase() !== tokenConfig.address) continue
+              try {
+                const decoded = decodeEventLog({
+                  abi: erc20Abi,
+                  data: log.data,
+                  topics: log.topics,
+                })
+                if (decoded.eventName === 'Transfer') {
+                  const eventTo = decoded.args.to.toLowerCase()
+                  const eventFrom = decoded.args.from.toLowerCase()
+                  if (eventTo === depositAddress && senderAddress && eventFrom !== senderAddress.trim().toLowerCase()) {
+                    reason = `Transfer found but sender doesn't match. On-chain sender: ${eventFrom}, you provided: ${senderAddress.trim().toLowerCase()}`
+                  } else if (eventTo !== depositAddress) {
+                    reason = `Tokens were sent to ${eventTo}, not the platform address ${depositAddress}.`
+                  }
+                }
+              } catch {
+                continue
+              }
+            }
+
             await prisma.transaction.update({
               where: { id: transaction.id },
               data: { status: 'failed' },
             })
-            return NextResponse.json({ error: 'No valid token transfer to platform address found' }, { status: 400 })
+            return NextResponse.json({ error: reason }, { status: 400 })
+          }
+        }
+
+        // Verify the on-chain amount matches what the user claimed (with gas tolerance)
+        const claimedAmount = parseFloat(amount)
+        const onChainAmount = parseFloat(actualAmount!)
+        if (claimedAmount > 0 && onChainAmount > 0) {
+          const diff = Math.abs(onChainAmount - claimedAmount)
+          const tolerance = claimedAmount * AMOUNT_TOLERANCE
+          if (diff > tolerance) {
+            await prisma.transaction.update({
+              where: { id: transaction.id },
+              data: { status: 'failed' },
+            })
+            return NextResponse.json(
+              { error: `Amount mismatch. You claimed ${claimedAmount} ${token} but the transaction shows ${onChainAmount} ${token}.` },
+              { status: 400 }
+            )
           }
         }
 
@@ -262,6 +384,12 @@ export async function POST(request: NextRequest) {
                 platformAddress: depositAddress,
                 priceFetchedAt,
                 lockedUntil: getDepositLockDate().toISOString(),
+                verifiedOnChain: true,
+                verifiedTokenContract,
+                verifiedFrom,
+                verifiedTo,
+                claimedAmount: parseFloat(amount),
+                onChainAmount: cryptoAmount,
               },
             },
           })

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Copy, Check, Loader2, Info } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -72,6 +72,51 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
   const [manualTxHash, setManualTxHash] = useState('')
   const [manualSubmitted, setManualSubmitted] = useState(false)
   const [depositMode, setDepositMode] = useState<'wallet' | 'txhash'>('wallet')
+  const [senderAddress, setSenderAddress] = useState('')
+  const [txHashStarted, setTxHashStarted] = useState(false)
+  const [txHashStartTime, setTxHashStartTime] = useState<number | null>(null)
+  const [timeLeft, setTimeLeft] = useState(300) // 5 minutes in seconds
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // 5-minute countdown timer
+  useEffect(() => {
+    if (txHashStarted && txHashStartTime) {
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - txHashStartTime) / 1000)
+        const remaining = Math.max(0, 300 - elapsed)
+        setTimeLeft(remaining)
+        if (remaining <= 0) {
+          clearInterval(timerRef.current!)
+          timerRef.current = null
+        }
+      }, 1000)
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current)
+      }
+    }
+  }, [txHashStarted, txHashStartTime])
+
+  const startTxHashFlow = useCallback(() => {
+    setTxHashStarted(true)
+    setTxHashStartTime(Date.now())
+    setTimeLeft(300)
+  }, [])
+
+  const resetTxHashFlow = useCallback(() => {
+    setTxHashStarted(false)
+    setTxHashStartTime(null)
+    setTimeLeft(300)
+    setManualTxHash('')
+    setSenderAddress('')
+    setDepositAmount('')
+    if (timerRef.current) clearInterval(timerRef.current)
+  }, [])
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    return `${m}:${s.toString().padStart(2, '0')}`
+  }
 
   const token = TOKENS[selectedToken]
   const isTrc20 = selectedToken === 'USDT-TRC20'
@@ -230,6 +275,18 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
       toast({ title: 'Missing transaction hash', description: 'Please enter your transaction hash', variant: 'destructive' })
       return
     }
+    if (!senderAddress.trim()) {
+      toast({ title: 'Missing sender address', description: 'Please enter the wallet address you sent from', variant: 'destructive' })
+      return
+    }
+    if (!depositAmount || parseFloat(depositAmount) <= 0) {
+      toast({ title: 'Invalid amount', description: 'Please enter the amount you sent', variant: 'destructive' })
+      return
+    }
+    if (timeLeft <= 0) {
+      toast({ title: 'Time expired', description: 'The 5-minute window has expired. Please start a new deposit.', variant: 'destructive' })
+      return
+    }
 
     setIsDepositing(true)
     try {
@@ -240,9 +297,11 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
         method: 'POST',
         body: JSON.stringify({
           txHash: manualTxHash.trim(),
-          amount: '0', // will be determined from on-chain data
+          amount: depositAmount,
+          senderAddress: senderAddress.trim(),
           network: token.network === 'bsc' ? 'bsc' : 'ethereum',
           token: token.baseToken,
+          submittedAt: txHashStartTime,
         }),
       })
 
@@ -259,8 +318,7 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
             ? `${data.conversion?.cryptoAmount || ''} ${token.name} deposited. Principal locked until ${lockDate}.`
             : `${token.name} has been added to your balance`,
         })
-        setManualTxHash('')
-        setDepositAmount('')
+        resetTxHashFlow()
         await refreshUser()
         await onSuccess()
       } else {
@@ -489,47 +547,129 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
               </>
             ) : (
               <>
-                <CopyableAddress label={getDepositLabel()} address={getDepositAddress()} />
+                {!txHashStarted ? (
+                  <>
+                    <CopyableAddress label={getDepositLabel()} address={getDepositAddress()} />
 
-                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                  <div className="flex items-start gap-2">
-                    <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
-                    <p className="text-sm text-white/70">
-                      Send <span className="text-orange-400 font-medium">{token.name}</span> on the{' '}
-                      <span className="text-orange-400 font-medium">
-                        {isBep20 ? 'Binance Smart Chain (BEP-20)' : 'Ethereum (ERC-20)'}
-                      </span>{' '}
-                      network to the address above from any wallet. Then paste your transaction hash below.
-                    </p>
-                  </div>
-                </div>
+                    <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                      <div className="flex items-start gap-2">
+                        <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
+                        <p className="text-sm text-white/70">
+                          Send <span className="text-orange-400 font-medium">{token.name}</span> on the{' '}
+                          <span className="text-orange-400 font-medium">
+                            {isBep20 ? 'Binance Smart Chain (BEP-20)' : 'Ethereum (ERC-20)'}
+                          </span>{' '}
+                          network to the address above from any wallet. Once sent, click below to submit the transaction details within 5 minutes.
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="evmTxHash" className="text-white/70">Transaction Hash</Label>
-                  <Input
-                    id="evmTxHash"
-                    type="text"
-                    placeholder="0x..."
-                    value={manualTxHash}
-                    onChange={(e) => setManualTxHash(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 font-mono text-sm"
-                    disabled={isDepositing}
-                  />
-                </div>
+                    <ShimmerButton
+                      shimmerColor="#f97316"
+                      background="rgba(249, 115, 22, 1)"
+                      className="w-full text-white"
+                      onClick={startTxHashFlow}
+                    >
+                      I&apos;ve Sent the Transaction
+                    </ShimmerButton>
+                  </>
+                ) : timeLeft <= 0 ? (
+                  <>
+                    <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                      <p className="text-sm font-medium text-red-400 mb-1">Time Expired</p>
+                      <p className="text-xs text-white/60">
+                        The 5-minute submission window has expired. Please start a new deposit.
+                      </p>
+                    </div>
+                    <ShimmerButton
+                      shimmerColor="#f97316"
+                      background="rgba(249, 115, 22, 1)"
+                      className="w-full text-white"
+                      onClick={resetTxHashFlow}
+                    >
+                      Start New Deposit
+                    </ShimmerButton>
+                  </>
+                ) : (
+                  <>
+                    {/* Countdown timer */}
+                    <div className={`p-3 rounded-lg border text-center ${
+                      timeLeft <= 60
+                        ? 'bg-red-500/10 border-red-500/30'
+                        : 'bg-orange-500/10 border-orange-500/30'
+                    }`}>
+                      <p className="text-xs text-white/50 mb-1">Time remaining to submit</p>
+                      <p className={`text-2xl font-mono font-bold ${
+                        timeLeft <= 60 ? 'text-red-400' : 'text-orange-400'
+                      }`}>
+                        {formatTime(timeLeft)}
+                      </p>
+                    </div>
 
-                <ShimmerButton
-                  shimmerColor="#f97316"
-                  background="rgba(249, 115, 22, 1)"
-                  className="w-full text-white"
-                  onClick={handleTxHashDeposit}
-                  disabled={isDepositing || !manualTxHash.trim()}
-                >
-                  {isDepositing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying...</>
-                  ) : (
-                    'Submit Transaction Hash'
-                  )}
-                </ShimmerButton>
+                    <div className="space-y-2">
+                      <Label htmlFor="senderAddr" className="text-white/70">Sender Wallet Address</Label>
+                      <Input
+                        id="senderAddr"
+                        type="text"
+                        placeholder="0x... (the wallet you sent from)"
+                        value={senderAddress}
+                        onChange={(e) => setSenderAddress(e.target.value)}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 font-mono text-sm"
+                        disabled={isDepositing}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="txHashAmount" className="text-white/70">Amount Sent ({token.name})</Label>
+                      <Input
+                        id="txHashAmount"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder={`Enter amount in ${token.name}`}
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+                        disabled={isDepositing}
+                      />
+                      <p className="text-xs text-white/40">Enter the amount you sent (excluding gas fees)</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="evmTxHash" className="text-white/70">Transaction Hash</Label>
+                      <Input
+                        id="evmTxHash"
+                        type="text"
+                        placeholder="0x..."
+                        value={manualTxHash}
+                        onChange={(e) => setManualTxHash(e.target.value)}
+                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 font-mono text-sm"
+                        disabled={isDepositing}
+                      />
+                    </div>
+
+                    <ShimmerButton
+                      shimmerColor="#f97316"
+                      background="rgba(249, 115, 22, 1)"
+                      className="w-full text-white"
+                      onClick={handleTxHashDeposit}
+                      disabled={isDepositing || !manualTxHash.trim() || !senderAddress.trim() || !depositAmount}
+                    >
+                      {isDepositing ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying on-chain...</>
+                      ) : (
+                        'Verify & Submit Deposit'
+                      )}
+                    </ShimmerButton>
+
+                    <button
+                      onClick={resetTxHashFlow}
+                      className="w-full py-2 text-sm text-white/40 hover:text-white/60 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
               </>
             )}
           </>

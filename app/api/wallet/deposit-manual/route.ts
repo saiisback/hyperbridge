@@ -121,7 +121,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User profile not found' }, { status: 404 })
     }
 
-    // Create pending transaction — unique constraint on txHash prevents duplicates
+    // Check if this tx hash already exists with a completed/pending status
+    const existing = await prisma.transaction.findUnique({
+      where: { txHash: txHash.trim() },
+    })
+    if (existing && (existing.status === 'completed' || existing.status === 'pending')) {
+      return NextResponse.json(
+        { error: existing.status === 'completed' ? 'Transaction already processed' : 'Transaction is already being processed' },
+        { status: 400 }
+      )
+    }
+    // If a previous failed attempt exists, delete it to allow retry
+    if (existing && existing.status === 'failed') {
+      await prisma.transaction.delete({ where: { id: existing.id } })
+    }
+
+    // Create pending transaction
     let transaction
     try {
       transaction = await prisma.transaction.create({
@@ -159,29 +174,42 @@ export async function POST(request: NextRequest) {
       try {
         // Validate tx hash format for EVM chains
         if (!/^0x[a-fA-F0-9]{64}$/.test(txHash.trim())) {
-          await prisma.transaction.update({
+          await prisma.transaction.delete({
             where: { id: transaction.id },
-            data: { status: 'failed' },
           })
           return NextResponse.json({ error: 'Invalid transaction hash format' }, { status: 400 })
         }
 
         const hash = txHash.trim() as `0x${string}`
 
-        let txReceipt = await publicClient.getTransactionReceipt({ hash })
+        let txReceipt
+        try {
+          txReceipt = await publicClient.getTransactionReceipt({ hash })
+        } catch {
+          // Receipt not available yet — tx may still be pending, wait for it
+        }
 
         if (!txReceipt) {
-          txReceipt = await publicClient.waitForTransactionReceipt({
-            hash,
-            confirmations: 1,
-            timeout: 60_000,
-          })
+          try {
+            txReceipt = await publicClient.waitForTransactionReceipt({
+              hash,
+              confirmations: 1,
+              timeout: 120_000,
+            })
+          } catch {
+            await prisma.transaction.delete({
+              where: { id: transaction.id },
+            })
+            return NextResponse.json(
+              { error: 'Transaction not found on chain. It may still be pending — please wait and try again.' },
+              { status: 400 }
+            )
+          }
         }
 
         if (txReceipt.status !== 'success') {
-          await prisma.transaction.update({
+          await prisma.transaction.delete({
             where: { id: transaction.id },
-            data: { status: 'failed' },
           })
           return NextResponse.json({ error: 'Transaction failed on chain' }, { status: 400 })
         }
@@ -190,9 +218,8 @@ export async function POST(request: NextRequest) {
 
         // Verify sender address matches what the user provided
         if (senderAddress && tx.from.toLowerCase() !== senderAddress.trim().toLowerCase()) {
-          await prisma.transaction.update({
+          await prisma.transaction.delete({
             where: { id: transaction.id },
-            data: { status: 'failed' },
           })
           return NextResponse.json(
             { error: 'Transaction sender does not match the wallet address you provided' },
@@ -205,9 +232,8 @@ export async function POST(request: NextRequest) {
         const txTimestamp = Number(block.timestamp) * 1000 // convert to ms
         const now = Date.now()
         if (now - txTimestamp > TX_SUBMISSION_WINDOW_MS) {
-          await prisma.transaction.update({
+          await prisma.transaction.delete({
             where: { id: transaction.id },
-            data: { status: 'failed' },
           })
           return NextResponse.json(
             { error: 'Transaction is older than 5 minutes. Please start a new deposit.' },
@@ -354,9 +380,8 @@ export async function POST(request: NextRequest) {
           priceFetchedAt = priceData.fetchedAt
         } catch (priceError) {
           console.error('Failed to fetch INR price:', priceError)
-          await prisma.transaction.update({
+          await prisma.transaction.delete({
             where: { id: transaction.id },
-            data: { status: 'failed' },
           })
           return NextResponse.json(
             { error: 'Failed to fetch real-time INR conversion rate. Please try again.' },
@@ -427,9 +452,8 @@ export async function POST(request: NextRequest) {
         })
       } catch (verifyError) {
         console.error('On-chain verification error:', verifyError)
-        await prisma.transaction.update({
+        await prisma.transaction.delete({
           where: { id: transaction.id },
-          data: { status: 'failed' },
         })
         return NextResponse.json(
           { error: 'Failed to verify transaction on chain. Please check the hash and try again.' },

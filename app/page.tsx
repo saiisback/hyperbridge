@@ -726,12 +726,12 @@ export default function HomePage() {
         </div>
 
         <nav className="hidden md:flex items-center space-x-6 lg:space-x-8">
-          <a href="#about" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
+          <button onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
             About us
-          </a>
-          <a href="#contact" className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
+          </button>
+          <button onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/80 hover:text-white transition-colors text-sm lg:text-base">
             Contact
-          </a>
+          </button>
         </nav>
 
         {/* Mobile menu button */}
@@ -752,12 +752,12 @@ export default function HomePage() {
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-16 left-0 right-0 bg-black/95 backdrop-blur-sm border-b border-white/10 z-20">
           <nav className="flex flex-col space-y-4 px-6 py-6">
-            <a href="#about" className="text-white/80 hover:text-white transition-colors" onClick={() => setMobileMenuOpen(false)}>
+            <button onClick={() => { document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }); setMobileMenuOpen(false); }} className="text-white/80 hover:text-white transition-colors text-left">
               About us
-            </a>
-            <a href="#contact" className="text-white/80 hover:text-white transition-colors" onClick={() => setMobileMenuOpen(false)}>
+            </button>
+            <button onClick={() => { document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }); setMobileMenuOpen(false); }} className="text-white/80 hover:text-white transition-colors text-left">
               Contact
-            </a>
+            </button>
       
             <ShimmerButton className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-xl text-sm font-medium shadow-lg w-fit">
             <a href="/login" className="text-orange-500 hover:text-orange-400 transition-colors font-medium">
@@ -864,8 +864,8 @@ export default function HomePage() {
             <span className="text-white/60 text-sm">&copy; 2026 Winfinitty. All rights reserved.</span>
           </div>
           <div className="flex items-center space-x-6">
-            <a href="#about" className="text-white/50 hover:text-white/80 text-sm transition-colors">About</a>
-            <a href="#contact" className="text-white/50 hover:text-white/80 text-sm transition-colors">Contact</a>
+            <button onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/50 hover:text-white/80 text-sm transition-colors">About</button>
+            <button onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/50 hover:text-white/80 text-sm transition-colors">Contact</button>
           </div>
         </div>
       </footer>

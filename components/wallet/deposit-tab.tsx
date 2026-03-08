@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState } from 'react'
 import { Copy, Check, Loader2, Info } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,18 +12,11 @@ import { useToast } from '@/hooks/use-toast'
 import { useWallets } from '@privy-io/react-auth'
 import { authFetch } from '@/lib/api'
 import { createPublicClient, http, parseEther, parseUnits, encodeFunctionData, erc20Abi } from 'viem'
-import { mainnet, bsc } from 'viem/chains'
+import { mainnet } from 'viem/chains'
 import type { TokenKey } from './token-selector'
 import { TOKENS } from './token-selector'
 
 const PLATFORM_DEPOSIT_ADDRESS = process.env.NEXT_PUBLIC_PLATFORM_DEPOSIT_ADDRESS || ''
-const BEP20_DEPOSIT_ADDRESS = '0xef7063e1329331343fe88478421a2af15a725030'
-const TRC20_DEPOSIT_ADDRESS = 'TZA7cFmFFtTsKrVkLqdSPSHpZzD8if189t'
-
-const CHAIN_CONFIG = {
-  ethereum: { chain: mainnet, chainId: 1 },
-  bsc: { chain: bsc, chainId: 56 },
-} as const
 
 interface DepositTabProps {
   selectedToken: TokenKey
@@ -69,73 +62,10 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
 
   const [depositAmount, setDepositAmount] = useState('')
   const [isDepositing, setIsDepositing] = useState(false)
-  const [manualTxHash, setManualTxHash] = useState('')
-  const [manualSubmitted, setManualSubmitted] = useState(false)
-  const [depositMode, setDepositMode] = useState<'wallet' | 'txhash'>('wallet')
-  const [senderAddress, setSenderAddress] = useState('')
-  const [txHashStarted, setTxHashStarted] = useState(false)
-  const [txHashStartTime, setTxHashStartTime] = useState<number | null>(null)
-  const [timeLeft, setTimeLeft] = useState(300) // 5 minutes in seconds
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-
-  // 5-minute countdown timer
-  useEffect(() => {
-    if (txHashStarted && txHashStartTime) {
-      timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - txHashStartTime) / 1000)
-        const remaining = Math.max(0, 300 - elapsed)
-        setTimeLeft(remaining)
-        if (remaining <= 0) {
-          clearInterval(timerRef.current!)
-          timerRef.current = null
-        }
-      }, 1000)
-      return () => {
-        if (timerRef.current) clearInterval(timerRef.current)
-      }
-    }
-  }, [txHashStarted, txHashStartTime])
-
-  const startTxHashFlow = useCallback(() => {
-    setTxHashStarted(true)
-    setTxHashStartTime(Date.now())
-    setTimeLeft(300)
-  }, [])
-
-  const resetTxHashFlow = useCallback(() => {
-    setTxHashStarted(false)
-    setTxHashStartTime(null)
-    setTimeLeft(300)
-    setManualTxHash('')
-    setSenderAddress('')
-    setDepositAmount('')
-    if (timerRef.current) clearInterval(timerRef.current)
-  }, [])
-
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60)
-    const s = secs % 60
-    return `${m}:${s.toString().padStart(2, '0')}`
-  }
 
   const token = TOKENS[selectedToken]
-  const isTrc20 = selectedToken === 'USDT-TRC20'
-  const isBep20 = selectedToken === 'USDT-BEP20'
 
-  const getDepositAddress = (): string => {
-    if (isBep20) return BEP20_DEPOSIT_ADDRESS
-    if (isTrc20) return TRC20_DEPOSIT_ADDRESS
-    return PLATFORM_DEPOSIT_ADDRESS
-  }
-
-  const getDepositLabel = (): string => {
-    if (isBep20) return 'USDT Deposit Address (BEP-20 — Binance Smart Chain)'
-    if (isTrc20) return 'USDT Deposit Address (TRC-20 — Tron)'
-    if (selectedToken === 'USDT-ERC20') return 'Platform Deposit Address (ERC-20)'
-    return 'Platform Deposit Address (ERC-20)'
-  }
-
-  // On-chain deposit for ERC-20 and BEP-20
+  // On-chain deposit for ERC-20 and ETH
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) {
       toast({ title: 'Invalid amount', description: 'Please enter a valid deposit amount', variant: 'destructive' })
@@ -148,34 +78,32 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
     }
 
     const activeWallet = wallets[0]
-    const networkKey = token.network as 'ethereum' | 'bsc'
-    const { chain, chainId } = CHAIN_CONFIG[networkKey]
-    const depositAddress = getDepositAddress() as `0x${string}`
+    const depositAddress = PLATFORM_DEPOSIT_ADDRESS as `0x${string}`
 
     setIsDepositing(true)
     try {
       const ethereumProvider = await activeWallet.getEthereumProvider()
 
-      // Switch chain via provider directly
+      // Switch to Ethereum mainnet
       try {
         await ethereumProvider.request({
           method: 'wallet_switchEthereumChain',
-          params: [{ chainId: `0x${chainId.toString(16)}` }],
+          params: [{ chainId: '0x1' }],
         })
       } catch (switchError: unknown) {
         if (switchError && typeof switchError === 'object' && 'code' in switchError && (switchError as { code: number }).code === 4902) {
           await ethereumProvider.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: `0x${chainId.toString(16)}`,
-              chainName: chain.name,
-              nativeCurrency: chain.nativeCurrency,
-              rpcUrls: [chain.rpcUrls.default.http[0]],
-              blockExplorerUrls: chain.blockExplorers ? [chain.blockExplorers.default.url] : undefined,
+              chainId: '0x1',
+              chainName: mainnet.name,
+              nativeCurrency: mainnet.nativeCurrency,
+              rpcUrls: [mainnet.rpcUrls.default.http[0]],
+              blockExplorerUrls: mainnet.blockExplorers ? [mainnet.blockExplorers.default.url] : undefined,
             }],
           })
         } else {
-          toast({ title: 'Chain switch failed', description: `Please switch your wallet to ${chain.name}`, variant: 'destructive' })
+          toast({ title: 'Chain switch failed', description: 'Please switch your wallet to Ethereum', variant: 'destructive' })
           return
         }
       }
@@ -187,8 +115,7 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
         return
       }
 
-      const rpcUrl = networkKey === 'bsc' ? 'https://bsc-dataseed.binance.org' : undefined
-      const publicClient = createPublicClient({ chain, transport: http(rpcUrl) })
+      const publicClient = createPublicClient({ chain: mainnet, transport: http() })
 
       toast({ title: 'Confirm transaction', description: `Please confirm the ${token.name} transfer in your wallet` })
 
@@ -269,117 +196,6 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
     }
   }
 
-  // Manual tx hash deposit for ERC-20/BEP-20
-  const handleTxHashDeposit = async () => {
-    if (!manualTxHash.trim()) {
-      toast({ title: 'Missing transaction hash', description: 'Please enter your transaction hash', variant: 'destructive' })
-      return
-    }
-    if (!senderAddress.trim()) {
-      toast({ title: 'Missing sender address', description: 'Please enter the wallet address you sent from', variant: 'destructive' })
-      return
-    }
-    if (!depositAmount || parseFloat(depositAmount) <= 0) {
-      toast({ title: 'Invalid amount', description: 'Please enter the amount you sent', variant: 'destructive' })
-      return
-    }
-    if (timeLeft <= 0) {
-      toast({ title: 'Time expired', description: 'The 5-minute window has expired. Please start a new deposit.', variant: 'destructive' })
-      return
-    }
-
-    setIsDepositing(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) throw new Error('Not authenticated')
-
-      const response = await authFetch('/api/wallet/deposit-manual', accessToken, {
-        method: 'POST',
-        body: JSON.stringify({
-          txHash: manualTxHash.trim(),
-          amount: depositAmount,
-          senderAddress: senderAddress.trim(),
-          network: token.network === 'bsc' ? 'bsc' : 'ethereum',
-          token: token.baseToken,
-          submittedAt: txHashStartTime,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        if (data.profile) setProfileData(data.profile)
-        const lockDate = data.lockInfo?.lockedUntil
-          ? new Date(data.lockInfo.lockedUntil).toLocaleDateString()
-          : null
-        toast({
-          title: 'Deposit successful',
-          description: lockDate
-            ? `${data.conversion?.cryptoAmount || ''} ${token.name} deposited. Principal locked until ${lockDate}.`
-            : `${token.name} has been added to your balance`,
-        })
-        resetTxHashFlow()
-        await refreshUser()
-        await onSuccess()
-      } else {
-        toast({ title: 'Deposit failed', description: data.error || 'Failed to verify transaction', variant: 'destructive' })
-      }
-    } catch (error: unknown) {
-      console.error('Tx hash deposit error:', error)
-      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to process deposit', variant: 'destructive' })
-    } finally {
-      setIsDepositing(false)
-    }
-  }
-
-  // Manual deposit for TRC-20
-  const handleManualDeposit = async () => {
-    if (!depositAmount || parseFloat(depositAmount) <= 0) {
-      toast({ title: 'Invalid amount', description: 'Please enter a valid deposit amount', variant: 'destructive' })
-      return
-    }
-    if (!manualTxHash.trim()) {
-      toast({ title: 'Missing transaction hash', description: 'Please enter your transaction hash', variant: 'destructive' })
-      return
-    }
-
-    setIsDepositing(true)
-    try {
-      const accessToken = await getAccessToken()
-      if (!accessToken) throw new Error('Not authenticated')
-
-      const response = await authFetch('/api/wallet/deposit-manual', accessToken, {
-        method: 'POST',
-        body: JSON.stringify({
-          txHash: manualTxHash.trim(),
-          amount: depositAmount,
-          network: 'trc20',
-        }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
-        setManualSubmitted(true)
-        toast({ title: 'Deposit submitted', description: `Your ${depositAmount} USDT deposit will be credited after admin verification.` })
-        await onSuccess()
-      } else {
-        toast({ title: 'Error', description: data.error || 'Failed to submit deposit', variant: 'destructive' })
-      }
-    } catch (error: unknown) {
-      console.error('Manual deposit error:', error)
-      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to submit deposit', variant: 'destructive' })
-    } finally {
-      setIsDepositing(false)
-    }
-  }
-
-  const resetManualDeposit = () => {
-    setManualTxHash('')
-    setManualSubmitted(false)
-    setDepositAmount('')
-  }
-
   return (
     <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
       <CardHeader>
@@ -389,290 +205,48 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* TRC-20 manual flow */}
-        {isTrc20 ? (
-          <>
-            {!manualSubmitted ? (
-              <>
-                <CopyableAddress label={getDepositLabel()} address={getDepositAddress()} />
+        <div className="space-y-2">
+          <Label htmlFor="depositAmount" className="text-white/70">Amount ({token.name})</Label>
+          <Input
+            id="depositAmount"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder={`Enter amount in ${token.name}`}
+            value={depositAmount}
+            onChange={(e) => setDepositAmount(e.target.value)}
+            className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+            disabled={isDepositing}
+          />
+        </div>
 
-                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                  <div className="flex items-start gap-2">
-                    <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
-                    <p className="text-sm text-white/70">
-                      Send only <span className="text-orange-400 font-medium">USDT</span> on the <span className="text-orange-400 font-medium">Tron (TRC-20)</span> network to the address above from your Tron wallet (e.g. TronLink). Then paste your transaction hash below.
-                    </p>
-                  </div>
-                </div>
+        <CopyableAddress label="Platform Deposit Address (ERC-20)" address={PLATFORM_DEPOSIT_ADDRESS} />
 
-                <div className="space-y-2">
-                  <Label htmlFor="trc20Amount" className="text-white/70">Amount (USDT)</Label>
-                  <Input
-                    id="trc20Amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Enter amount you sent"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
-                    disabled={isDepositing}
-                  />
-                </div>
+        {address && (
+          <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+            <p className="text-sm text-white/70 mb-1">Your Connected Wallet</p>
+            <code className="text-sm text-white font-mono break-all">{address}</code>
+          </div>
+        )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="trc20TxHash" className="text-white/70">Transaction Hash</Label>
-                  <Input
-                    id="trc20TxHash"
-                    type="text"
-                    placeholder="Paste your TRC-20 transaction hash"
-                    value={manualTxHash}
-                    onChange={(e) => setManualTxHash(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 font-mono text-sm"
-                    disabled={isDepositing}
-                  />
-                </div>
+        <ShimmerButton
+          shimmerColor="#f97316"
+          background="rgba(249, 115, 22, 1)"
+          className="w-full text-white"
+          onClick={handleDeposit}
+          disabled={isDepositing || !address}
+        >
+          {isDepositing ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
+          ) : (
+            `Deposit ${token.name}`
+          )}
+        </ShimmerButton>
 
-                <ShimmerButton
-                  shimmerColor="#f97316"
-                  background="rgba(249, 115, 22, 1)"
-                  className="w-full text-white"
-                  onClick={handleManualDeposit}
-                  disabled={isDepositing || !depositAmount || !manualTxHash.trim()}
-                >
-                  {isDepositing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Submitting...</>
-                  ) : (
-                    'Submit Deposit'
-                  )}
-                </ShimmerButton>
-              </>
-            ) : (
-              <>
-                <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
-                  <p className="text-sm font-medium text-green-400 mb-1">Deposit Submitted</p>
-                  <p className="text-xs text-white/60">
-                    Your {depositAmount} USDT deposit via TRC-20 has been submitted. Your balance will be credited after admin verification.
-                  </p>
-                </div>
-                <button onClick={resetManualDeposit} className="w-full py-2 text-sm text-white/50 hover:text-white/70 transition-colors">
-                  Submit another deposit
-                </button>
-              </>
-            )}
-          </>
-        ) : (
-          /* ERC-20, BEP-20, and ETH on-chain flow */
-          <>
-            {/* Deposit mode toggle */}
-            <div className="flex rounded-lg bg-white/5 border border-white/10 p-1">
-              <button
-                onClick={() => setDepositMode('wallet')}
-                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  depositMode === 'wallet'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-white/60 hover:text-white/80'
-                }`}
-              >
-                Connected Wallet
-              </button>
-              <button
-                onClick={() => setDepositMode('txhash')}
-                className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  depositMode === 'txhash'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-white/60 hover:text-white/80'
-                }`}
-              >
-                Transaction Hash
-              </button>
-            </div>
-
-            {depositMode === 'wallet' ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="depositAmount" className="text-white/70">Amount ({token.name})</Label>
-                  <Input
-                    id="depositAmount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder={`Enter amount in ${token.name}`}
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
-                    disabled={isDepositing}
-                  />
-                </div>
-
-                <CopyableAddress label={getDepositLabel()} address={getDepositAddress()} />
-
-                {address && (
-                  <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                    <p className="text-sm text-white/70 mb-1">Your Connected Wallet</p>
-                    <code className="text-sm text-white font-mono break-all">{address}</code>
-                  </div>
-                )}
-
-                {isBep20 && (
-                  <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                    <div className="flex items-start gap-2">
-                      <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
-                      <p className="text-sm text-white/70">
-                        Your wallet will be switched to <span className="text-orange-400 font-medium">Binance Smart Chain (BEP-20)</span>. Send only <span className="text-orange-400 font-medium">USDT</span> on this network.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <ShimmerButton
-                  shimmerColor="#f97316"
-                  background="rgba(249, 115, 22, 1)"
-                  className="w-full text-white"
-                  onClick={handleDeposit}
-                  disabled={isDepositing || !address}
-                >
-                  {isDepositing ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processing...</>
-                  ) : (
-                    `Deposit ${token.name}`
-                  )}
-                </ShimmerButton>
-
-                {!address && (
-                  <p className="text-sm text-yellow-500 text-center">
-                    Please connect your wallet to make a deposit
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                {!txHashStarted ? (
-                  <>
-                    <CopyableAddress label={getDepositLabel()} address={getDepositAddress()} />
-
-                    <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                      <div className="flex items-start gap-2">
-                        <Info className="h-4 w-4 text-orange-400 mt-0.5 shrink-0" />
-                        <p className="text-sm text-white/70">
-                          Send <span className="text-orange-400 font-medium">{token.name}</span> on the{' '}
-                          <span className="text-orange-400 font-medium">
-                            {isBep20 ? 'Binance Smart Chain (BEP-20)' : 'Ethereum (ERC-20)'}
-                          </span>{' '}
-                          network to the address above from any wallet. Once sent, click below to submit the transaction details within 5 minutes.
-                        </p>
-                      </div>
-                    </div>
-
-                    <ShimmerButton
-                      shimmerColor="#f97316"
-                      background="rgba(249, 115, 22, 1)"
-                      className="w-full text-white"
-                      onClick={startTxHashFlow}
-                    >
-                      I&apos;ve Sent the Transaction
-                    </ShimmerButton>
-                  </>
-                ) : timeLeft <= 0 ? (
-                  <>
-                    <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
-                      <p className="text-sm font-medium text-red-400 mb-1">Time Expired</p>
-                      <p className="text-xs text-white/60">
-                        The 5-minute submission window has expired. Please start a new deposit.
-                      </p>
-                    </div>
-                    <ShimmerButton
-                      shimmerColor="#f97316"
-                      background="rgba(249, 115, 22, 1)"
-                      className="w-full text-white"
-                      onClick={resetTxHashFlow}
-                    >
-                      Start New Deposit
-                    </ShimmerButton>
-                  </>
-                ) : (
-                  <>
-                    {/* Countdown timer */}
-                    <div className={`p-3 rounded-lg border text-center ${
-                      timeLeft <= 60
-                        ? 'bg-red-500/10 border-red-500/30'
-                        : 'bg-orange-500/10 border-orange-500/30'
-                    }`}>
-                      <p className="text-xs text-white/50 mb-1">Time remaining to submit</p>
-                      <p className={`text-2xl font-mono font-bold ${
-                        timeLeft <= 60 ? 'text-red-400' : 'text-orange-400'
-                      }`}>
-                        {formatTime(timeLeft)}
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="senderAddr" className="text-white/70">Sender Wallet Address</Label>
-                      <Input
-                        id="senderAddr"
-                        type="text"
-                        placeholder="0x... (the wallet you sent from)"
-                        value={senderAddress}
-                        onChange={(e) => setSenderAddress(e.target.value)}
-                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 font-mono text-sm"
-                        disabled={isDepositing}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="txHashAmount" className="text-white/70">Amount Sent ({token.name})</Label>
-                      <Input
-                        id="txHashAmount"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder={`Enter amount in ${token.name}`}
-                        value={depositAmount}
-                        onChange={(e) => setDepositAmount(e.target.value)}
-                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
-                        disabled={isDepositing}
-                      />
-                      <p className="text-xs text-white/40">Enter the amount you sent (excluding gas fees)</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="evmTxHash" className="text-white/70">Transaction Hash</Label>
-                      <Input
-                        id="evmTxHash"
-                        type="text"
-                        placeholder="0x..."
-                        value={manualTxHash}
-                        onChange={(e) => setManualTxHash(e.target.value)}
-                        className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 font-mono text-sm"
-                        disabled={isDepositing}
-                      />
-                    </div>
-
-                    <ShimmerButton
-                      shimmerColor="#f97316"
-                      background="rgba(249, 115, 22, 1)"
-                      className="w-full text-white"
-                      onClick={handleTxHashDeposit}
-                      disabled={isDepositing || !manualTxHash.trim() || !senderAddress.trim() || !depositAmount}
-                    >
-                      {isDepositing ? (
-                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying on-chain...</>
-                      ) : (
-                        'Verify & Submit Deposit'
-                      )}
-                    </ShimmerButton>
-
-                    <button
-                      onClick={resetTxHashFlow}
-                      className="w-full py-2 text-sm text-white/40 hover:text-white/60 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-          </>
+        {!address && (
+          <p className="text-sm text-yellow-500 text-center">
+            Please connect your wallet to make a deposit
+          </p>
         )}
 
         {/* Principal lock info */}

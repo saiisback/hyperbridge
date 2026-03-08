@@ -5,8 +5,6 @@ const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS as `0x${strin
 const TOKENS = {
   ETH: { name: 'ETH', label: 'ETH', address: null as null, decimals: 18, network: 'ethereum' as const, baseToken: 'ETH' as const },
   'USDT-ERC20': { name: 'USDT', label: 'USDT - ERC20', address: USDT_ADDRESS, decimals: 6, network: 'ethereum' as const, baseToken: 'USDT' as const },
-  'USDT-BEP20': { name: 'USDT', label: 'USDT - BEP20', address: '0x55d398326f99059fF775485246999027B3197955' as `0x${string}`, decimals: 18, network: 'bsc' as const, baseToken: 'USDT' as const },
-  'USDT-TRC20': { name: 'USDT', label: 'USDT - TRC20', address: null as null, decimals: 6, network: 'tron' as const, baseToken: 'USDT' as const },
 } as const
 
 export type TokenKey = keyof typeof TOKENS

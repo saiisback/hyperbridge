@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/dashboard/app-sidebar'
 import { DashboardHeader } from '@/components/dashboard/dashboard-header'
+import { MobileBottomNav } from '@/components/dashboard/mobile-bottom-nav'
 import { useAuth } from '@/context/auth-context'
 
 export default function DashboardLayout({
@@ -51,13 +52,16 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="bg-black rounded-xl m-2 ml-0 overflow-hidden border border-white/10 max-h-[calc(100vh-1rem)] flex flex-col">
+      <div className="hidden md:block">
+        <AppSidebar />
+      </div>
+      <SidebarInset className="bg-black rounded-xl m-2 ml-0 overflow-hidden border border-white/10 flex flex-col max-h-[calc(100vh-1rem-4rem)] md:max-h-[calc(100vh-1rem)]">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-20 md:pb-6">
           {children}
         </main>
       </SidebarInset>
+      <MobileBottomNav />
     </SidebarProvider>
   )
 }

@@ -28,8 +28,8 @@ export function DashboardHeader() {
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-4 bg-black/50 backdrop-blur-sm">
-      <SidebarTrigger className="-ml-1 text-white/70 hover:text-white hover:bg-white/10" />
-      <Separator orientation="vertical" className="mr-2 h-4 bg-white/10" />
+      <SidebarTrigger className="-ml-1 text-white/70 hover:text-white hover:bg-white/10 hidden md:flex" />
+      <Separator orientation="vertical" className="mr-2 h-4 bg-white/10 hidden md:block" />
 
       <Breadcrumb>
         <BreadcrumbList>

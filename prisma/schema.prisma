@@ -131,3 +131,12 @@ model WithdrawalWindow {
 
   @@map("withdrawal_windows")
 }
+
+model WmExchangeRate {
+  id        String   @id @default("default")
+  ethRate   Decimal  @map("eth_rate") @db.Decimal(18, 2)
+  usdtRate  Decimal  @map("usdt_rate") @db.Decimal(18, 2)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("wm_exchange_rates")
+}

@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 const depositInrSchema = z.object({
-  amount: z.number().min(100, 'Minimum deposit is ₹100'),
+  amount: z.number().min(50000, 'Minimum deposit is ₹50,000'),
 })
 
 function generateRemarkCode(): string {

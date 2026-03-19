@@ -17,6 +17,22 @@ import type { TokenKey } from './token-selector'
 import { TOKENS } from './token-selector'
 
 const PLATFORM_DEPOSIT_ADDRESS = process.env.NEXT_PUBLIC_PLATFORM_DEPOSIT_ADDRESS || ''
+const MIN_DEPOSIT_INR = 50000
+
+const COINGECKO_IDS: Record<string, string> = {
+  ETH: 'ethereum',
+  USDT: 'tether',
+}
+
+async function getApproxINRValue(tokenName: string, amount: number): Promise<number> {
+  const coinId = COINGECKO_IDS[tokenName]
+  if (!coinId) return 0
+  const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=inr`)
+  if (!res.ok) return 0
+  const data = await res.json()
+  const rate = data[coinId]?.inr
+  return typeof rate === 'number' ? amount * rate : 0
+}
 
 interface DepositTabProps {
   selectedToken: TokenKey
@@ -69,6 +85,18 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) {
       toast({ title: 'Invalid amount', description: 'Please enter a valid deposit amount', variant: 'destructive' })
+      return
+    }
+
+    // Check minimum deposit (₹50,000 INR equivalent)
+    const amount = parseFloat(depositAmount)
+    const inrValue = await getApproxINRValue(token.baseToken, amount)
+    if (inrValue > 0 && inrValue < MIN_DEPOSIT_INR) {
+      toast({
+        title: 'Below minimum deposit',
+        description: `Minimum deposit is ₹50,000. Your deposit is worth approx ₹${inrValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}.`,
+        variant: 'destructive',
+      })
       return
     }
 
@@ -248,6 +276,19 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
             Please connect your wallet to make a deposit
           </p>
         )}
+
+        {/* Minimum deposit info */}
+        <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-blue-400">Minimum Deposit</p>
+              <p className="text-xs text-white/60 mt-1">
+                Minimum deposit amount is ₹50,000 (INR equivalent).
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Principal lock info */}
         <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">

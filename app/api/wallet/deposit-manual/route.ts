@@ -478,6 +478,18 @@ export async function POST(request: NextRequest) {
         const cryptoAmount = parseFloat(actualAmount!)
         const amountInr = cryptoAmount * inrPrice
 
+        // Enforce minimum deposit of ₹50,000
+        if (amountInr < 50000) {
+          console.warn(`[deposit-manual] REJECTED: Below minimum — amountInr=${amountInr} minimum=50000 txId=${transaction.id} txHash=${txHash}`)
+          await prisma.transaction.delete({
+            where: { id: transaction.id },
+          })
+          return NextResponse.json(
+            { error: `Minimum deposit is ₹50,000. Your deposit is worth ₹${amountInr.toLocaleString('en-IN', { minimumFractionDigits: 2 })}.` },
+            { status: 400 }
+          )
+        }
+
         // Update transaction and credit balance
         console.log(`[deposit-manual] Completing deposit: cryptoAmount=${cryptoAmount} amountInr=${amountInr} txId=${transaction.id} txHash=${txHash}`)
         const result = await prisma.$transaction(async (prismaTransaction) => {

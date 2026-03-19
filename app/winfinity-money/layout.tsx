@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { WmProviders } from './wm-providers'
+import { WmHeader } from './wm-header'
 
 export const metadata: Metadata = {
   title: 'Winfinity Money',
@@ -17,13 +18,7 @@ export default function WinfinityMoneyLayout({
   return (
     <WmProviders>
       <div className="wm-theme min-h-screen bg-background text-foreground">
-        <header className="border-b border-border/40">
-          <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-            <h1 className="text-lg font-semibold tracking-tight text-primary">
-              Winfinity Money
-            </h1>
-          </div>
-        </header>
+        <WmHeader />
         <main className="mx-auto max-w-2xl px-4 py-8">
           {children}
         </main>

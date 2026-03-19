@@ -16,10 +16,10 @@ export default function WinfinityMoneyLayout({
 }) {
   return (
     <WmProviders>
-      <div className="min-h-screen bg-background">
+      <div className="wm-theme min-h-screen bg-background text-foreground">
         <header className="border-b border-border/40">
           <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-4">
-            <h1 className="text-lg font-semibold tracking-tight">
+            <h1 className="text-lg font-semibold tracking-tight text-primary">
               Winfinity Money
             </h1>
           </div>

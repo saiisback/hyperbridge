@@ -16,7 +16,7 @@ model User {
   privyId       String    @unique @map("privy_id")
   name          String?
   avatarUrl     String?   @map("avatar_url")
-  email         String?
+  email         String?   @unique
   primaryWallet String?   @map("primary_wallet")
   isActive      Boolean   @default(true) @map("is_active")
   kycVerified   Boolean   @default(false) @map("kyc_verified")

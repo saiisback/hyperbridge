@@ -35,10 +35,27 @@ export async function POST(request: NextRequest) {
     }
     const { email, wallets, referredBy } = parsed.data
 
-    // Check if user exists
+    // Check if user exists by privyId
     let user = await prisma.user.findUnique({
       where: { privyId },
     })
+
+    // If no user found by privyId but email is provided, check for existing account with same email
+    if (!user && email) {
+      const existingUserByEmail = await prisma.user.findUnique({
+        where: { email },
+      })
+      if (existingUserByEmail) {
+        // Link this new privyId to the existing account
+        user = await prisma.user.update({
+          where: { id: existingUserByEmail.id },
+          data: {
+            privyId,
+            lastLoginAt: new Date(),
+          },
+        })
+      }
+    }
 
     if (!user) {
       // Create new user with profile in a transaction

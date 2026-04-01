@@ -2,9 +2,12 @@
 
 const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_CONTRACT_ADDRESS as `0x${string}`
 
+const TRC20_DEPOSIT_ADDRESS = process.env.NEXT_PUBLIC_TRC20_DEPOSIT_ADDRESS || 'TZA7cFmFFtTsKrVkLqdSPSHpZzD8if189t'
+
 const TOKENS = {
   ETH: { name: 'ETH', label: 'ETH', address: null as null, decimals: 18, network: 'ethereum' as const, baseToken: 'ETH' as const },
   'USDT-ERC20': { name: 'USDT', label: 'USDT - ERC20', address: USDT_ADDRESS, decimals: 6, network: 'ethereum' as const, baseToken: 'USDT' as const },
+  'USDT-TRC20': { name: 'USDT', label: 'USDT - TRC20', address: TRC20_DEPOSIT_ADDRESS, decimals: 6, network: 'trc20' as const, baseToken: 'USDT' as const },
 } as const
 
 export type TokenKey = keyof typeof TOKENS

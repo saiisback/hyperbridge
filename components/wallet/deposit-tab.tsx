@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Copy, Check, Loader2, Info } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,11 +17,13 @@ import type { TokenKey } from './token-selector'
 import { TOKENS } from './token-selector'
 
 const PLATFORM_DEPOSIT_ADDRESS = process.env.NEXT_PUBLIC_PLATFORM_DEPOSIT_ADDRESS || ''
+const TRC20_DEPOSIT_ADDRESS = process.env.NEXT_PUBLIC_TRC20_DEPOSIT_ADDRESS || 'TZA7cFmFFtTsKrVkLqdSPSHpZzD8if189t'
 const MIN_DEPOSIT_INR = 50000
 
 const COINGECKO_IDS: Record<string, string> = {
   ETH: 'ethereum',
   USDT: 'tether',
+  TRX: 'tron',
 }
 
 async function getApproxINRValue(tokenName: string, amount: number): Promise<number> {
@@ -70,7 +72,279 @@ function CopyableAddress({ label, address }: { label: string; address: string })
   )
 }
 
-export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
+function TronDepositFlow({ selectedToken, onSuccess }: DepositTabProps) {
+  const { refreshUser, setProfileData, getAccessToken } = useAuth()
+  const { toast } = useToast()
+
+  const [depositAmount, setDepositAmount] = useState('')
+  const [inrEquivalent, setInrEquivalent] = useState<number | null>(null)
+  const [isFetchingPrice, setIsFetchingPrice] = useState(false)
+  const [step, setStep] = useState<'amount' | 'confirm'>('amount')
+  const [senderAddress, setSenderAddress] = useState('')
+  const [txHash, setTxHash] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittedAt, setSubmittedAt] = useState<number | null>(null)
+
+  const token = TOKENS[selectedToken]
+
+  // Fetch INR equivalent when amount changes
+  useEffect(() => {
+    const amount = parseFloat(depositAmount)
+    if (!amount || amount <= 0) {
+      setInrEquivalent(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsFetchingPrice(true)
+      try {
+        const res = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=inr'
+        )
+        if (!res.ok) throw new Error('Price fetch failed')
+        const data = await res.json()
+        const inrRate = data.tether?.inr
+        if (typeof inrRate === 'number') {
+          setInrEquivalent(amount * inrRate)
+        }
+      } catch {
+        setInrEquivalent(null)
+      } finally {
+        setIsFetchingPrice(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [depositAmount])
+
+  const handleProceedToConfirm = async () => {
+    const amount = parseFloat(depositAmount)
+    if (!amount || amount <= 0) {
+      toast({ title: 'Invalid amount', description: 'Please enter a valid deposit amount', variant: 'destructive' })
+      return
+    }
+
+    // Check minimum deposit
+    const inrValue = await getApproxINRValue('USDT', amount)
+    if (inrValue > 0 && inrValue < MIN_DEPOSIT_INR) {
+      toast({
+        title: 'Below minimum deposit',
+        description: `Minimum deposit is ₹50,000. Your deposit is worth approx ₹${inrValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}.`,
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSubmittedAt(Date.now())
+    setStep('confirm')
+  }
+
+  const handleSubmitDeposit = async () => {
+    if (!senderAddress.trim()) {
+      toast({ title: 'Missing address', description: 'Please enter the TRON address you sent from', variant: 'destructive' })
+      return
+    }
+    if (!txHash.trim()) {
+      toast({ title: 'Missing transaction hash', description: 'Please enter the transaction hash', variant: 'destructive' })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const accessToken = await getAccessToken()
+      if (!accessToken) throw new Error('Not authenticated')
+
+      const response = await authFetch('/api/wallet/deposit-manual', accessToken, {
+        method: 'POST',
+        body: JSON.stringify({
+          txHash: txHash.trim(),
+          amount: depositAmount,
+          senderAddress: senderAddress.trim(),
+          network: 'trc20',
+          token: 'USDT',
+          submittedAt,
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (response.ok) {
+        if (responseData.profile) setProfileData(responseData.profile)
+        toast({
+          title: 'Deposit submitted',
+          description: responseData.message || 'Your TRC-20 deposit has been submitted for verification.',
+        })
+        setDepositAmount('')
+        setSenderAddress('')
+        setTxHash('')
+        setStep('amount')
+        setSubmittedAt(null)
+        await refreshUser()
+        await onSuccess()
+      } else {
+        toast({ title: 'Deposit failed', description: responseData.error || 'Failed to submit deposit', variant: 'destructive' })
+      }
+    } catch (error: unknown) {
+      console.error('TRC-20 deposit error:', error)
+      toast({ title: 'Deposit failed', description: error instanceof Error ? error.message : 'Failed to process deposit', variant: 'destructive' })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Card className="bg-black/50 backdrop-blur-sm border-white/10 rounded-xl">
+      <CardHeader>
+        <CardTitle className="text-white">Deposit {token.label}</CardTitle>
+        <CardDescription className="text-white/50">
+          Send USDT via TRON (TRC-20) network
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {step === 'amount' && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="tronDepositAmount" className="text-white/70">Amount (USDT)</Label>
+              <Input
+                id="tronDepositAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Enter amount in USDT"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+              />
+            </div>
+
+            {/* INR Equivalent */}
+            {depositAmount && parseFloat(depositAmount) > 0 && (
+              <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                <p className="text-sm text-white/70 mb-1">Equivalent in INR</p>
+                {isFetchingPrice ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-white/50" />
+                    <span className="text-sm text-white/50">Fetching rate...</span>
+                  </div>
+                ) : inrEquivalent !== null ? (
+                  <p className="text-lg font-semibold text-white">
+                    ~₹{inrEquivalent.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                ) : (
+                  <p className="text-sm text-white/40">Unable to fetch INR rate</p>
+                )}
+              </div>
+            )}
+
+            <CopyableAddress label="Platform TRC-20 Deposit Address" address={TRC20_DEPOSIT_ADDRESS} />
+
+            <ShimmerButton
+              shimmerColor="#f97316"
+              background="rgba(249, 115, 22, 1)"
+              className="w-full text-white"
+              onClick={handleProceedToConfirm}
+              disabled={!depositAmount || parseFloat(depositAmount) <= 0}
+            >
+              I&apos;ve Sent the Deposit
+            </ShimmerButton>
+          </>
+        )}
+
+        {step === 'confirm' && (
+          <>
+            <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30">
+              <p className="text-sm text-white/70">Deposit Amount</p>
+              <p className="text-lg font-semibold text-white">{depositAmount} USDT (TRC-20)</p>
+              {inrEquivalent !== null && (
+                <p className="text-sm text-white/50">
+                  ~₹{inrEquivalent.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tronSenderAddress" className="text-white/70">Sender TRON Address</Label>
+              <Input
+                id="tronSenderAddress"
+                type="text"
+                placeholder="e.g. TXqH3..."
+                value={senderAddress}
+                onChange={(e) => setSenderAddress(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tronTxHash" className="text-white/70">Transaction Hash</Label>
+              <Input
+                id="tronTxHash"
+                type="text"
+                placeholder="Enter your TRON transaction hash"
+                value={txHash}
+                onChange={(e) => setTxHash(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-orange-500"
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep('amount')}
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-white/5 text-white/70 border border-white/10 hover:bg-white/10 transition-colors"
+              >
+                Back
+              </button>
+              <ShimmerButton
+                shimmerColor="#f97316"
+                background="rgba(249, 115, 22, 1)"
+                className="flex-1 text-white"
+                onClick={handleSubmitDeposit}
+                disabled={isSubmitting || !senderAddress.trim() || !txHash.trim()}
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Verifying...</>
+                ) : (
+                  'Confirm Deposit'
+                )}
+              </ShimmerButton>
+            </div>
+          </>
+        )}
+
+        {/* Minimum deposit info */}
+        <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-blue-400">Minimum Deposit</p>
+              <p className="text-xs text-white/60 mt-1">
+                Minimum deposit amount is ₹50,000 (INR equivalent).
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Principal lock info */}
+        <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-yellow-400">Principal Lock Period</p>
+              <p className="text-xs text-white/60 mt-1">
+                Your deposited principal will be locked for 4 months.
+                Daily ROI earnings (0.35%) will be available for withdrawal immediately.
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function EvmDepositFlow({ selectedToken, onSuccess }: DepositTabProps) {
   const { address } = useWallet()
   const { refreshUser, setProfileData, getAccessToken } = useAuth()
   const { wallets } = useWallets()
@@ -306,4 +580,11 @@ export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
       </CardContent>
     </Card>
   )
+}
+
+export function DepositTab({ selectedToken, onSuccess }: DepositTabProps) {
+  if (selectedToken === 'USDT-TRC20') {
+    return <TronDepositFlow selectedToken={selectedToken} onSuccess={onSuccess} />
+  }
+  return <EvmDepositFlow selectedToken={selectedToken} onSuccess={onSuccess} />
 }

@@ -11,6 +11,8 @@ import {
   ArrowLeft,
   LogOut,
   ChevronUp,
+  Coins,
+  PlusCircle,
 } from 'lucide-react'
 
 import {
@@ -57,6 +59,16 @@ const navigationItems = [
     title: 'Withdrawals',
     url: '/admin/withdrawals',
     icon: ArrowUpFromLine,
+  },
+  {
+    title: 'TRC-20 Deposits',
+    url: '/admin/trc20-deposits',
+    icon: Coins,
+  },
+  {
+    title: 'Add Balance',
+    url: '/admin/add-balance',
+    icon: PlusCircle,
   },
   {
     title: 'Withdraw Window',

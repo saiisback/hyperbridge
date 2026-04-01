@@ -132,6 +132,7 @@ export interface AdminRecentTransaction {
   type: string
   amount: string
   amountInr: string | null
+  token: string | null
   status: string
   createdAt: string
   user: { name: string | null; email: string | null }

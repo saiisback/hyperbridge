@@ -131,7 +131,11 @@ export default function AdminTransactionsPage() {
                           className={tx.type === 'deposit' ? 'text-green-500' : 'text-red-500'}
                         >
                           {tx.type === 'deposit' ? '+' : '-'}
-                          ₹{formatINR(parseFloat(tx.amountInr || tx.amount))}
+                          {tx.amountInr
+                            ? `₹${formatINR(parseFloat(tx.amountInr))}`
+                            : tx.type === 'deposit'
+                              ? `${parseFloat(tx.amount).toLocaleString('en-US')} ${tx.token || 'USDT'}`
+                              : `₹${formatINR(parseFloat(tx.amount))}`}
                         </TableCell>
                         <TableCell>
                           <Badge

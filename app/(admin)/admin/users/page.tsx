@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { useAdminData } from '@/hooks/use-admin-data'
 import { formatINR, truncateAddress } from '@/lib/utils'
+import { UserDetailSheet } from './_components/user-detail-sheet'
 
 interface AdminUser {
   id: string
@@ -53,6 +55,8 @@ function TableSkeletonRows({ rows = 5 }: { rows?: number }) {
 export default function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const extraParams = searchQuery ? { search: searchQuery } : undefined
   const { data: users, isLoading, isFetching, page, totalPages, total, setPage } = useAdminData<AdminUser>(
@@ -108,7 +112,11 @@ export default function AdminUsersPage() {
                   </TableHeader>
                   <TableBody>
                     {users.map((u) => (
-                      <TableRow key={u.id} className="border-white/10 hover:bg-white/5">
+                      <TableRow
+                        key={u.id}
+                        onClick={() => setSelectedUserId(u.id)}
+                        className="border-white/10 hover:bg-white/5 cursor-pointer"
+                      >
                         <TableCell className="text-white font-medium">
                           {u.name || 'Anonymous'}
                           {u.role === 'admin' && (
@@ -176,6 +184,18 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <UserDetailSheet
+        userId={selectedUserId}
+        open={!!selectedUserId}
+        onOpenChange={(o) => {
+          if (!o) setSelectedUserId(null)
+        }}
+        onDeleted={() => {
+          setSelectedUserId(null)
+          queryClient.invalidateQueries({ queryKey: ['admin', '/api/admin/users'] })
+        }}
+      />
     </div>
   )
 }
